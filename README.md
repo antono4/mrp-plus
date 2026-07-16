@@ -78,7 +78,7 @@ python sample_data.py
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### Docker (Optional)
+### Docker
 
 ```bash
 # Build image
@@ -86,6 +86,25 @@ docker build -t mrp-plus .
 
 # Run container
 docker run -p 8000:8000 mrp-plus
+```
+
+### Deploy to Cloud
+
+**Railway** (Recommended for FastAPI)
+1. Connect GitHub repo at [railway.app](https://railway.app)
+2. Railway auto-detects Python/FastAPI
+3. Deploy!
+
+**Render**
+1. Create new Web Service at [render.com](https://render.com)
+2. Connect GitHub repo
+3. Set build command: `pip install -r requirements.txt`
+4. Set start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+**Vercel**
+```bash
+npm i -g vercel
+vercel --prod
 ```
 
 ---
