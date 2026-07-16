@@ -1,0 +1,2378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRP++ | Material Requirements Planning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #1E3A5F;
+            --secondary: #2E7D32;
+            --accent: #FF6B35;
+            --background: #F5F7FA;
+            --card-bg: #FFFFFF;
+            --text-primary: #1A1A2E;
+            --text-secondary: #6B7280;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+            --border: #E5E7EB;
+            --sidebar-width: 260px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--primary);
+            color: white;
+            padding: 20px 0;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 24px;
+            margin-bottom: 32px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--accent);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-item {
+            padding: 14px 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+            opacity: 0.85;
+        }
+
+        .nav-item:hover {
+            background: rgba(255,255,255,0.1);
+            opacity: 1;
+        }
+
+        .nav-item.active {
+            background: rgba(255,255,255,0.15);
+            border-left-color: var(--accent);
+            opacity: 1;
+        }
+
+        .nav-item i {
+            width: 20px;
+            height: 20px;
+        }
+
+        .nav-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.15);
+            margin: 16px 24px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 16px;
+            width: 280px;
+        }
+
+        .search-box input {
+            border: none;
+            background: transparent;
+            outline: none;
+            width: 100%;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #15304d;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Page Container */
+        .page {
+            padding: 32px;
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon.blue { background: #EBF5FF; color: #1E3A5F; }
+        .stat-icon.green { background: #E8F5E9; color: #2E7D32; }
+        .stat-icon.orange { background: #FFF3E0; color: #FF6B35; }
+        .stat-icon.red { background: #FFEBEE; color: #EF4444; }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            background: var(--background);
+        }
+
+        tr:hover {
+            background: var(--background);
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success { background: #D1FAE5; color: #059669; }
+        .badge-warning { background: #FEF3C7; color: #D97706; }
+        .badge-danger { background: #FEE2E2; color: #DC2626; }
+        .badge-info { background: #DBEAFE; color: #2563EB; }
+        .badge-raw { background: #E0E7FF; color: #4F46E5; }
+        .badge-component { background: #FEF3C7; color: #D97706; }
+        .badge-finished { background: #D1FAE5; color: #059669; }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--background);
+            border-color: var(--primary);
+        }
+
+        .action-btn.danger:hover {
+            background: #FFEBEE;
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: none;
+            background: var(--background);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--border);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-error {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        /* Alerts List */
+        .alerts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .alert-item {
+            padding: 16px;
+            background: #FFEBEE;
+            border-left: 4px solid var(--danger);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-item.warning {
+            background: #FFF8E1;
+            border-left-color: var(--warning);
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .alert-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* Tree View */
+        .tree-view {
+            padding-left: 20px;
+        }
+
+        .tree-item {
+            padding: 8px 0;
+            border-left: 1px solid var(--border);
+        }
+
+        .tree-item::before {
+            content: '';
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            margin-right: 12px;
+            vertical-align: middle;
+        }
+
+        .tree-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.warning { border-left: 4px solid var(--warning); }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .main-content { margin-left: 0; }
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Print styles */
+        @media print {
+            .sidebar, .header, .btn, .action-btn { display: none !important; }
+            .main-content { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">M+</div>
+            <span class="logo-text">MRP++</span>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-page="dashboard">
+                <i data-lucide="layout-dashboard"></i>
+                <span>Dashboard</span>
+            </li>
+            <li class="nav-item" data-page="products">
+                <i data-lucide="package"></i>
+                <span>Products</span>
+            </li>
+            <li class="nav-item" data-page="bom">
+                <i data-lucide="git-branch"></i>
+                <span>Bill of Materials</span>
+            </li>
+            <li class="nav-item" data-page="inventory">
+                <i data-lucide="warehouse"></i>
+                <span>Inventory</span>
+            </li>
+            <li class="nav-item" data-page="demand">
+                <i data-lucide="shopping-cart"></i>
+                <span>Demand</span>
+            </li>
+            <div class="nav-divider"></div>
+            <li class="nav-item" data-page="mrp">
+                <i data-lucide="calculator"></i>
+                <span>MRP Calculation</span>
+            </li>
+            <li class="nav-item" data-page="planned-orders">
+                <i data-lucide="clipboard-list"></i>
+                <span>Planned Orders</span>
+            </li>
+            <div class="nav-divider"></div>
+            <li class="nav-item" data-page="reports">
+                <i data-lucide="bar-chart-3"></i>
+                <span>Reports</span>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="header-title">Dashboard</h1>
+            <div class="header-actions">
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search...">
+                </div>
+                <button class="btn btn-primary" onclick="openQuickAdd()">
+                    <i data-lucide="plus"></i>
+                    Quick Add
+                </button>
+            </div>
+        </header>
+
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page active">
+            <div class="dashboard-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue"><i data-lucide="package"></i></div>
+                    <div class="stat-value" id="stat-products">-</div>
+                    <div class="stat-label">Active Products</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i data-lucide="trending-up"></i></div>
+                    <div class="stat-value" id="stat-demands">-</div>
+                    <div class="stat-label">Pending Demands</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange"><i data-lucide="clipboard-list"></i></div>
+                    <div class="stat-value" id="stat-orders">-</div>
+                    <div class="stat-label">Planned Orders</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon red"><i data-lucide="alert-triangle"></i></div>
+                    <div class="stat-value" id="stat-alerts">-</div>
+                    <div class="stat-label">Low Stock Items</div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Inventory Value Trend</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="inventoryChart" height="200"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Stock Alerts</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="alerts-list" id="alerts-list">
+                            <!-- Alerts will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Inventory Status Overview</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Warehouse</th>
+                                    <th>On Hand</th>
+                                    <th>Reserved</th>
+                                    <th>Available</th>
+                                    <th>Min Level</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body">
+                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Page -->
+        <div id="page-products" class="page">
+            <div class="page-header">
+                <h2 class="page-title">Products</h2>
+                <button class="btn btn-primary" onclick="openProductModal()">
+                    <i data-lucide="plus"></i> Add Product
+                </button>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <div class="tabs" id="product-type-tabs">
+                        <span class="tab active" data-type="all">All</span>
+                        <span class="tab" data-type="raw_material">Raw Materials</span>
+                        <span class="tab" data-type="component">Components</span>
+                        <span class="tab" data-type="finished_good">Finished Goods</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Unit</th>
+                                    <th>Unit Cost</th>
+                                    <th>Lead Time</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="products-table-body">
+                                <tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOM Page -->
+        <div id="page-bom" class="page">
+            <div class="page-header">
+                <h2 class="page-title">Bill of Materials</h2>
+                <button class="btn btn-primary" onclick="openBOMModal()">
+                    <i data-lucide="plus"></i> Add BOM Item
+                </button>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">BOM Structure</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Parent Product</th>
+                                    <th>Child Product</th>
+                                    <th>Quantity</th>
+                                    <th>Scrap %</th>
+                                    <th>Effective From</th>
+                                    <th>Effective To</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bom-table-body">
+                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory Page -->
+        <div id="page-inventory" class="page">
+            <div class="page-header">
+                <h2 class="page-title">Inventory Management</h2>
+                <button class="btn btn-primary" onclick="openInventoryModal()">
+                    <i data-lucide="plus"></i> Add Inventory
+                </button>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Warehouse</th>
+                                    <th>Quantity</th>
+                                    <th>Reserved</th>
+                                    <th>Available</th>
+                                    <th>Reorder Point</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-page-body">
+                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demand Page -->
+        <div id="page-demand" class="page">
+            <div class="page-header">
+                <h2 class="page-title">Demand Management</h2>
+                <button class="btn btn-primary" onclick="openDemandModal()">
+                    <i data-lucide="plus"></i> Add Demand
+                </button>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Type</th>
+                                    <th>Reference</th>
+                                    <th>Quantity</th>
+                                    <th>Due Date</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="demand-table-body">
+                                <tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MRP Page -->
+        <div id="page-mrp" class="page">
+            <div class="page-header">
+                <h2 class="page-title">MRP Calculation</h2>
+            </div>
+            <div class="card" style="max-width: 600px;">
+                <div class="card-header">
+                    <span class="card-title">Run MRP</span>
+                </div>
+                <div class="card-body">
+                    <form id="mrp-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-input" id="mrp-start" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-input" id="mrp-end" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-checkbox">
+                                <input type="checkbox" id="mrp-safety-stock" checked>
+                                <span>Consider Safety Stock</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-checkbox">
+                                <input type="checkbox" id="mrp-min-stock" checked>
+                                <span>Consider Minimum Stock Level</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            <i data-lucide="calculator"></i> Run MRP Calculation
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 24px;">
+                <div class="card-header">
+                    <span class="card-title">MRP Results</span>
+                    <button class="btn btn-sm btn-secondary" onclick="loadMRPResults()">
+                        <i data-lucide="refresh-cw"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="mrp-results-container">
+                        <div class="empty-state">
+                            <i data-lucide="calculator" style="width:48px;height:48px;"></i>
+                            <h3>No MRP Results</h3>
+                            <p>Run MRP calculation to see planned orders</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Planned Orders Page -->
+        <div id="page-planned-orders" class="page">
+            <div class="page-header">
+                <h2 class="page-title">Planned Orders</h2>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Order Type</th>
+                                    <th>Quantity</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-table-body">
+                                <tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Page -->
+        <div id="page-reports" class="page">
+            <div class="page-header">
+                <h2 class="page-title">Reports</h2>
+            </div>
+            <div class="charts-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Demand vs Coverage</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="coverageChart" height="200"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Product Type Distribution</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="productTypeChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">MRP Coverage Report</span>
+                    <button class="btn btn-sm btn-secondary" onclick="exportReport('coverage')">
+                        <i data-lucide="download"></i> Export
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Total Demand</th>
+                                    <th>Total Planned</th>
+                                    <th>Coverage %</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coverage-report-body">
+                                <tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Product Modal -->
+    <div class="modal-overlay" id="product-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="product-modal-title">Add Product</h3>
+                <button class="modal-close" onclick="closeModal('product-modal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="product-form">
+                    <input type="hidden" id="product-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Product Code *</label>
+                            <input type="text" class="form-input" id="product-code" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Product Type *</label>
+                            <select class="form-select" id="product-type" required>
+                                <option value="raw_material">Raw Material</option>
+                                <option value="component">Component</option>
+                                <option value="finished_good">Finished Good</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Product Name *</label>
+                        <input type="text" class="form-input" id="product-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-textarea" id="product-description" rows="2"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Unit</label>
+                            <input type="text" class="form-input" id="product-unit" value="PCS">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <input type="text" class="form-input" id="product-category">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Unit Cost</label>
+                            <input type="number" class="form-input" id="product-cost" step="0.01" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Lead Time (Days)</label>
+                            <input type="number" class="form-input" id="product-lead-time" value="1" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Min Stock Level</label>
+                            <input type="number" class="form-input" id="product-min-stock" step="0.01" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Safety Stock</label>
+                            <input type="number" class="form-input" id="product-safety-stock" step="0.01" value="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Lot Sizing Method</label>
+                            <select class="form-select" id="product-lot-sizing">
+                                <option value="lfl">Lot for Lot (LFL)</option>
+                                <option value="foq">Fixed Order Quantity (FOQ)</option>
+                                <option value="eoq">Economic Order Quantity (EOQ)</option>
+                                <option value="poq">Period Order Quantity (POQ)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fixed Order Qty</label>
+                            <input type="number" class="form-input" id="product-fixed-qty" step="0.01" value="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('product-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveProduct()">Save Product</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOM Modal -->
+    <div class="modal-overlay" id="bom-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="bom-modal-title">Add BOM Item</h3>
+                <button class="modal-close" onclick="closeModal('bom-modal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="bom-form">
+                    <input type="hidden" id="bom-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Parent Product *</label>
+                            <select class="form-select" id="bom-parent" required>
+                                <option value="">Select Parent</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Child Product *</label>
+                            <select class="form-select" id="bom-child" required>
+                                <option value="">Select Child</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Quantity *</label>
+                            <input type="number" class="form-input" id="bom-quantity" step="0.01" required value="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Scrap %</label>
+                            <input type="number" class="form-input" id="bom-scrap" step="0.01" value="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Effective From</label>
+                            <input type="date" class="form-input" id="bom-from">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Effective To</label>
+                            <input type="date" class="form-input" id="bom-to">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-checkbox">
+                            <input type="checkbox" id="bom-optional">
+                            <span>Is Optional</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('bom-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveBOM()">Save BOM Item</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Modal -->
+    <div class="modal-overlay" id="inventory-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="inventory-modal-title">Add Inventory</h3>
+                <button class="modal-close" onclick="closeModal('inventory-modal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="inventory-form">
+                    <input type="hidden" id="inventory-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Product *</label>
+                            <select class="form-select" id="inventory-product" required>
+                                <option value="">Select Product</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Warehouse *</label>
+                            <select class="form-select" id="inventory-warehouse" required>
+                                <option value="">Select Warehouse</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-input" id="inventory-quantity" step="0.01" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Reorder Point</label>
+                            <input type="number" class="form-input" id="inventory-reorder" step="0.01" value="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('inventory-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveInventory()">Save Inventory</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Demand Modal -->
+    <div class="modal-overlay" id="demand-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="demand-modal-title">Add Demand</h3>
+                <button class="modal-close" onclick="closeModal('demand-modal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="demand-form">
+                    <input type="hidden" id="demand-id">
+                    <div class="form-group">
+                        <label class="form-label">Product *</label>
+                        <select class="form-select" id="demand-product" required>
+                            <option value="">Select Product</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Demand Type *</label>
+                            <select class="form-select" id="demand-type" required>
+                                <option value="sales_order">Sales Order</option>
+                                <option value="forecast">Forecast</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Reference Number</label>
+                            <input type="text" class="form-input" id="demand-reference">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Quantity *</label>
+                            <input type="number" class="form-input" id="demand-quantity" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date *</label>
+                            <input type="date" class="form-input" id="demand-due-date" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" id="demand-priority">
+                            <option value="1">1 - Highest</option>
+                            <option value="2">2 - High</option>
+                            <option value="3">3 - Normal</option>
+                            <option value="4">4 - Low</option>
+                            <option value="5">5 - Lowest</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('demand-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveDemand()">Save Demand</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Add Modal -->
+    <div class="modal-overlay" id="quickadd-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Quick Add</h3>
+                <button class="modal-close" onclick="closeModal('quickadd-modal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                    <button class="btn btn-secondary" onclick="closeModal('quickadd-modal'); openProductModal();">
+                        <i data-lucide="package"></i> Product
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeModal('quickadd-modal'); openBOMModal();">
+                        <i data-lucide="git-branch"></i> BOM Item
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeModal('quickadd-modal'); openInventoryModal();">
+                        <i data-lucide="warehouse"></i> Inventory
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeModal('quickadd-modal'); openDemandModal();">
+                        <i data-lucide="shopping-cart"></i> Demand
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // API Base URL
+        const API_BASE = '/api';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+            setupNavigation();
+            await initializeApp();
+        });
+
+        // Navigation
+        function setupNavigation() {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const page = item.dataset.page;
+                    navigateTo(page);
+                });
+            });
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const parent = tab.parentElement;
+                    parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    if (parent.id === 'product-type-tabs') {
+                        loadProducts(tab.dataset.type);
+                    }
+                });
+            });
+        }
+
+        function navigateTo(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(`page-${page}`).classList.add('active');
+            document.querySelector(`[data-page="${page}"]`).classList.add('active');
+            
+            document.querySelector('.header-title').textContent = 
+                page.charAt(0).toUpperCase() + page.slice(1).replace(/-/g, ' ');
+            
+            lucide.createIcons();
+            
+            // Load page data
+            switch(page) {
+                case 'dashboard': loadDashboard(); break;
+                case 'products': loadProducts(); break;
+                case 'bom': loadBOM(); break;
+                case 'inventory': loadInventory(); break;
+                case 'demand': loadDemand(); break;
+                case 'planned-orders': loadPlannedOrders(); break;
+                case 'reports': loadReports(); break;
+            }
+        }
+
+        // Initialize App
+        async function initializeApp() {
+            // Set default MRP dates
+            const today = new Date();
+            const endDate = new Date(today);
+            endDate.setMonth(endDate.getMonth() + 3);
+            
+            document.getElementById('mrp-start').value = today.toISOString().split('T')[0];
+            document.getElementById('mrp-end').value = endDate.toISOString().split('T')[0];
+            
+            // Set default demand date
+            const nextWeek = new Date(today);
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            document.getElementById('demand-due-date').value = nextWeek.toISOString().split('T')[0];
+            
+            // Initialize charts
+            initCharts();
+            
+            // Load initial data
+            loadDashboard();
+        }
+
+        // Charts
+        let inventoryChart, coverageChart, productTypeChart;
+
+        function initCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            };
+
+            // Inventory Value Chart
+            inventoryChart = new Chart(document.getElementById('inventoryChart'), {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Inventory Value',
+                        data: [45000, 52000, 48000, 61000, 55000, 67000],
+                        borderColor: '#1E3A5F',
+                        backgroundColor: 'rgba(30, 58, 95, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Coverage Chart
+            coverageChart = new Chart(document.getElementById('coverageChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Product A', 'Product B', 'Product C', 'Product D'],
+                    datasets: [{
+                        label: 'Demand',
+                        data: [100, 150, 80, 120],
+                        backgroundColor: '#EF4444'
+                    }, {
+                        label: 'Coverage',
+                        data: [90, 160, 85, 100],
+                        backgroundColor: '#10B981'
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Product Type Chart
+            productTypeChart = new Chart(document.getElementById('productTypeChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Raw Materials', 'Components', 'Finished Goods'],
+                    datasets: [{
+                        data: [45, 35, 20],
+                        backgroundColor: ['#4F46E5', '#D97706', '#059669']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        // Toast Notifications
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'alert-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 4000);
+        }
+
+        // Modal Functions
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function openQuickAdd() {
+            openModal('quickadd-modal');
+        }
+
+        // API Functions
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: { 'Content-Type': 'application/json', ...options.headers },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'API Error');
+                }
+                
+                return await response.json();
+            } catch (error) {
+                showToast(error.message, 'error');
+                throw error;
+            }
+        }
+
+        // Dashboard
+        async function loadDashboard() {
+            try {
+                const summary = await apiCall('/dashboard');
+                
+                document.getElementById('stat-products').textContent = summary.total_products || 0;
+                document.getElementById('stat-demands').textContent = summary.total_demands || 0;
+                document.getElementById('stat-orders').textContent = summary.pending_orders || 0;
+                document.getElementById('stat-alerts').textContent = summary.low_stock_items || 0;
+
+                // Update inventory chart with mock data based on inventory value
+                const mockInventoryData = Array(6).fill(0).map(() => 
+                    (summary.inventory_value || 50000) * (0.8 + Math.random() * 0.4)
+                );
+                inventoryChart.data.datasets[0].data = mockInventoryData;
+                inventoryChart.update();
+
+                // Load alerts
+                const alerts = await apiCall('/dashboard/alerts');
+                renderAlerts(alerts);
+
+                // Load inventory overview
+                const inventory = await apiCall('/inventory');
+                renderInventoryOverview(inventory);
+
+            } catch (error) {
+                console.error('Dashboard load error:', error);
+            }
+        }
+
+        function renderAlerts(alerts) {
+            const container = document.getElementById('alerts-list');
+            
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 24px;">
+                        <p>No stock alerts</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = alerts.map(alert => `
+                <div class="alert-item ${alert.current_stock < 0 ? '' : 'warning'}">
+                    <i data-lucide="alert-triangle" style="color: var(--danger);"></i>
+                    <div class="alert-content">
+                        <div class="alert-title">${alert.product_code}</div>
+                        <div class="alert-desc">
+                            Current: ${alert.current_stock.toFixed(2)} | Min: ${alert.min_stock_level.toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            lucide.createIcons();
+        }
+
+        function renderInventoryOverview(inventory) {
+            const tbody = document.getElementById('inventory-table-body');
+            
+            if (!inventory || inventory.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <p>No inventory records</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = inventory.map(inv => {
+                const available = inv.quantity - inv.reserved_quantity;
+                let status, statusClass;
+                
+                if (available < 0) {
+                    status = 'NEGATIVE'; statusClass = 'badge-danger';
+                } else if (available < inv.product?.min_stock_level) {
+                    status = 'LOW'; statusClass = 'badge-warning';
+                } else {
+                    status = 'OK'; statusClass = 'badge-success';
+                }
+
+                return `
+                    <tr>
+                        <td>${inv.product?.code || 'N/A'}</td>
+                        <td>${inv.warehouse?.name || 'N/A'}</td>
+                        <td>${inv.quantity.toFixed(2)}</td>
+                        <td>${inv.reserved_quantity.toFixed(2)}</td>
+                        <td>${available.toFixed(2)}</td>
+                        <td>${inv.product?.min_stock_level || 0}</td>
+                        <td><span class="badge ${statusClass}">${status}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Products
+        async function loadProducts(type = 'all') {
+            try {
+                const endpoint = type === 'all' ? '/products' : `/products?product_type=${type}`;
+                const products = await apiCall(endpoint);
+                renderProducts(products);
+            } catch (error) {
+                console.error('Products load error:', error);
+            }
+        }
+
+        function renderProducts(products) {
+            const tbody = document.getElementById('products-table-body');
+            
+            if (!products || products.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <i data-lucide="package" style="width:48px;height:48px;"></i>
+                            <h3>No Products</h3>
+                            <p>Add your first product to get started</p>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            tbody.innerHTML = products.map(p => {
+                const typeClass = p.product_type === 'raw_material' ? 'badge-raw' : 
+                                  p.product_type === 'component' ? 'badge-component' : 'badge-finished';
+                const typeLabel = p.product_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                return `
+                    <tr>
+                        <td><strong>${p.code}</strong></td>
+                        <td>${p.name}</td>
+                        <td><span class="badge ${typeClass}">${typeLabel}</span></td>
+                        <td>${p.unit}</td>
+                        <td>$${p.unit_cost.toFixed(2)}</td>
+                        <td>${p.lead_time_days} days</td>
+                        <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-danger'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                            <div class="actions">
+                                <button class="action-btn" onclick="editProduct(${p.id})" title="Edit">
+                                    <i data-lucide="edit-2" style="width:16px;height:16px;"></i>
+                                </button>
+                                <button class="action-btn danger" onclick="deleteProduct(${p.id})" title="Delete">
+                                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        async function openProductModal(id = null) {
+            document.getElementById('product-form').reset();
+            document.getElementById('product-id').value = '';
+            document.getElementById('product-modal-title').textContent = 'Add Product';
+            document.getElementById('product-unit').value = 'PCS';
+            
+            if (id) {
+                const product = await apiCall(`/products/${id}`);
+                document.getElementById('product-id').value = product.id;
+                document.getElementById('product-code').value = product.code;
+                document.getElementById('product-code').disabled = true;
+                document.getElementById('product-name').value = product.name;
+                document.getElementById('product-description').value = product.description || '';
+                document.getElementById('product-type').value = product.product_type;
+                document.getElementById('product-unit').value = product.unit;
+                document.getElementById('product-category').value = product.category || '';
+                document.getElementById('product-cost').value = product.unit_cost;
+                document.getElementById('product-lead-time').value = product.lead_time_days;
+                document.getElementById('product-min-stock').value = product.min_stock_level;
+                document.getElementById('product-safety-stock').value = product.safety_stock;
+                document.getElementById('product-lot-sizing').value = product.lot_sizing_method;
+                document.getElementById('product-fixed-qty').value = product.fixed_order_qty;
+                document.getElementById('product-modal-title').textContent = 'Edit Product';
+            }
+            
+            openModal('product-modal');
+        }
+
+        async function editProduct(id) {
+            await openProductModal(id);
+        }
+
+        async function saveProduct() {
+            const id = document.getElementById('product-id').value;
+            
+            const data = {
+                code: document.getElementById('product-code').value,
+                name: document.getElementById('product-name').value,
+                description: document.getElementById('product-description').value,
+                product_type: document.getElementById('product-type').value,
+                unit: document.getElementById('product-unit').value,
+                category: document.getElementById('product-category').value,
+                unit_cost: parseFloat(document.getElementById('product-cost').value) || 0,
+                lead_time_days: parseInt(document.getElementById('product-lead-time').value) || 1,
+                min_stock_level: parseFloat(document.getElementById('product-min-stock').value) || 0,
+                safety_stock: parseFloat(document.getElementById('product-safety-stock').value) || 0,
+                lot_sizing_method: document.getElementById('product-lot-sizing').value,
+                fixed_order_qty: parseFloat(document.getElementById('product-fixed-qty').value) || 0
+            };
+
+            try {
+                if (id) {
+                    await apiCall(`/products/${id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(data)
+                    });
+                    showToast('Product updated successfully');
+                } else {
+                    await apiCall('/products', {
+                        method: 'POST',
+                        body: JSON.stringify(data)
+                    });
+                    showToast('Product created successfully');
+                }
+                
+                closeModal('product-modal');
+                loadProducts();
+            } catch (error) {
+                console.error('Save product error:', error);
+            }
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm('Are you sure you want to delete this product?')) return;
+            
+            try {
+                await apiCall(`/products/${id}`, { method: 'DELETE' });
+                showToast('Product deleted successfully');
+                loadProducts();
+            } catch (error) {
+                console.error('Delete product error:', error);
+            }
+        }
+
+        // BOM
+        async function loadBOM() {
+            try {
+                const bom = await apiCall('/bom');
+                renderBOM(bom);
+                await loadBOMDropdowns();
+            } catch (error) {
+                console.error('BOM load error:', error);
+            }
+        }
+
+        async function loadBOMDropdowns() {
+            try {
+                const products = await apiCall('/products?is_active=true');
+                const options = products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+                
+                document.getElementById('bom-parent').innerHTML = '<option value="">Select Parent</option>' + options;
+                document.getElementById('bom-child').innerHTML = '<option value="">Select Child</option>' + options;
+            } catch (error) {
+                console.error('Load BOM dropdowns error:', error);
+            }
+        }
+
+        function renderBOM(bom) {
+            const tbody = document.getElementById('bom-table-body');
+            
+            if (!bom || bom.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i data-lucide="git-branch" style="width:48px;height:48px;"></i>
+                            <h3>No BOM Items</h3>
+                            <p>Add bill of materials to start planning</p>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            tbody.innerHTML = bom.map(item => `
+                <tr>
+                    <td>${item.parent_product?.code || 'N/A'}</td>
+                    <td>${item.child_product?.code || 'N/A'}</td>
+                    <td>${item.quantity.toFixed(2)}</td>
+                    <td>${item.scrap_percentage.toFixed(2)}%</td>
+                    <td>${item.effective_from || 'N/A'}</td>
+                    <td>${item.effective_to || 'N/A'}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="action-btn" onclick="deleteBOM(${item.id})" title="Delete">
+                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+            lucide.createIcons();
+        }
+
+        async function openBOMModal() {
+            document.getElementById('bom-form').reset();
+            document.getElementById('bom-id').value = '';
+            document.getElementById('bom-quantity').value = '1';
+            document.getElementById('bom-scrap').value = '0';
+            await loadBOMDropdowns();
+            openModal('bom-modal');
+        }
+
+        async function saveBOM() {
+            const data = {
+                parent_product_id: parseInt(document.getElementById('bom-parent').value),
+                child_product_id: parseInt(document.getElementById('bom-child').value),
+                quantity: parseFloat(document.getElementById('bom-quantity').value) || 1,
+                scrap_percentage: parseFloat(document.getElementById('bom-scrap').value) || 0,
+                effective_from: document.getElementById('bom-from').value || null,
+                effective_to: document.getElementById('bom-to').value || null,
+                is_optional: document.getElementById('bom-optional').checked
+            };
+
+            try {
+                await apiCall('/bom', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                showToast('BOM item created successfully');
+                closeModal('bom-modal');
+                loadBOM();
+            } catch (error) {
+                console.error('Save BOM error:', error);
+            }
+        }
+
+        async function deleteBOM(id) {
+            if (!confirm('Are you sure you want to delete this BOM item?')) return;
+            
+            try {
+                await apiCall(`/bom/${id}`, { method: 'DELETE' });
+                showToast('BOM item deleted successfully');
+                loadBOM();
+            } catch (error) {
+                console.error('Delete BOM error:', error);
+            }
+        }
+
+        // Inventory
+        async function loadInventory() {
+            try {
+                const inventory = await apiCall('/inventory');
+                renderInventoryPage(inventory);
+                await loadInventoryDropdowns();
+            } catch (error) {
+                console.error('Inventory load error:', error);
+            }
+        }
+
+        async function loadInventoryDropdowns() {
+            try {
+                const [products, warehouses] = await Promise.all([
+                    apiCall('/products?is_active=true'),
+                    apiCall('/warehouses')
+                ]);
+                
+                const productOptions = products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+                const warehouseOptions = warehouses.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+                
+                document.getElementById('inventory-product').innerHTML = '<option value="">Select Product</option>' + productOptions;
+                document.getElementById('inventory-warehouse').innerHTML = '<option value="">Select Warehouse</option>' + warehouseOptions;
+            } catch (error) {
+                console.error('Load inventory dropdowns error:', error);
+            }
+        }
+
+        function renderInventoryPage(inventory) {
+            const tbody = document.getElementById('inventory-page-body');
+            
+            if (!inventory || inventory.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i data-lucide="warehouse" style="width:48px;height:48px;"></i>
+                            <h3>No Inventory Records</h3>
+                            <p>Add inventory to track stock levels</p>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            tbody.innerHTML = inventory.map(inv => `
+                <tr>
+                    <td>${inv.product?.code || 'N/A'}</td>
+                    <td>${inv.warehouse?.name || 'N/A'}</td>
+                    <td>${inv.quantity.toFixed(2)}</td>
+                    <td>${inv.reserved_quantity.toFixed(2)}</td>
+                    <td>${(inv.quantity - inv.reserved_quantity).toFixed(2)}</td>
+                    <td>${inv.reorder_point.toFixed(2)}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="action-btn" onclick="addTransaction(${inv.id})" title="Add Transaction">
+                                <i data-lucide="plus-circle" style="width:16px;height:16px;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+            lucide.createIcons();
+        }
+
+        async function openInventoryModal() {
+            document.getElementById('inventory-form').reset();
+            document.getElementById('inventory-id').value = '';
+            await loadInventoryDropdowns();
+            openModal('inventory-modal');
+        }
+
+        async function saveInventory() {
+            const data = {
+                product_id: parseInt(document.getElementById('inventory-product').value),
+                warehouse_id: parseInt(document.getElementById('inventory-warehouse').value),
+                quantity: parseFloat(document.getElementById('inventory-quantity').value) || 0,
+                reorder_point: parseFloat(document.getElementById('inventory-reorder').value) || 0
+            };
+
+            try {
+                await apiCall('/inventory', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                showToast('Inventory saved successfully');
+                closeModal('inventory-modal');
+                loadInventory();
+            } catch (error) {
+                console.error('Save inventory error:', error);
+            }
+        }
+
+        async function addTransaction(inventoryId) {
+            const type = prompt('Transaction type (purchase/production/sale/adjustment):', 'purchase');
+            if (!type) return;
+            
+            const qty = parseFloat(prompt('Quantity:', '100'));
+            if (isNaN(qty)) return;
+
+            try {
+                await apiCall('/inventory-transactions', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        inventory_id: inventoryId,
+                        transaction_type: type,
+                        quantity: qty,
+                        notes: 'Manual transaction'
+                    })
+                });
+                showToast('Transaction added successfully');
+                loadInventory();
+                loadDashboard();
+            } catch (error) {
+                console.error('Add transaction error:', error);
+            }
+        }
+
+        // Demand
+        async function loadDemand() {
+            try {
+                const demand = await apiCall('/demands');
+                renderDemand(demand);
+                await loadDemandDropdowns();
+            } catch (error) {
+                console.error('Demand load error:', error);
+            }
+        }
+
+        async function loadDemandDropdowns() {
+            try {
+                const products = await apiCall('/products?is_active=true');
+                const options = products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+                document.getElementById('demand-product').innerHTML = '<option value="">Select Product</option>' + options;
+            } catch (error) {
+                console.error('Load demand dropdowns error:', error);
+            }
+        }
+
+        function renderDemand(demand) {
+            const tbody = document.getElementById('demand-table-body');
+            
+            if (!demand || demand.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <i data-lucide="shopping-cart" style="width:48px;height:48px;"></i>
+                            <h3>No Demand Records</h3>
+                            <p>Add demand to start MRP planning</p>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            tbody.innerHTML = demand.map(d => `
+                <tr>
+                    <td>${d.product?.code || 'N/A'}</td>
+                    <td><span class="badge ${d.demand_type === 'sales_order' ? 'badge-info' : 'badge-component'}">${d.demand_type.replace('_', ' ')}</span></td>
+                    <td>${d.reference_number || '-'}</td>
+                    <td>${d.quantity.toFixed(2)}</td>
+                    <td>${d.due_date}</td>
+                    <td>P${d.priority}</td>
+                    <td><span class="badge ${d.is_fulfilled ? 'badge-success' : 'badge-warning'}">${d.is_fulfilled ? 'Fulfilled' : 'Pending'}</span></td>
+                    <td>
+                        <div class="actions">
+                            <button class="action-btn danger" onclick="deleteDemand(${d.id})" title="Delete">
+                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+            lucide.createIcons();
+        }
+
+        async function openDemandModal() {
+            document.getElementById('demand-form').reset();
+            document.getElementById('demand-id').value = '';
+            await loadDemandDropdowns();
+            
+            const nextWeek = new Date();
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            document.getElementById('demand-due-date').value = nextWeek.toISOString().split('T')[0];
+            
+            openModal('demand-modal');
+        }
+
+        async function saveDemand() {
+            const data = {
+                product_id: parseInt(document.getElementById('demand-product').value),
+                demand_type: document.getElementById('demand-type').value,
+                reference_number: document.getElementById('demand-reference').value || null,
+                quantity: parseFloat(document.getElementById('demand-quantity').value),
+                due_date: document.getElementById('demand-due-date').value,
+                priority: parseInt(document.getElementById('demand-priority').value) || 1
+            };
+
+            try {
+                await apiCall('/demands', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                showToast('Demand created successfully');
+                closeModal('demand-modal');
+                loadDemand();
+            } catch (error) {
+                console.error('Save demand error:', error);
+            }
+        }
+
+        async function deleteDemand(id) {
+            if (!confirm('Are you sure you want to delete this demand?')) return;
+            
+            try {
+                await apiCall(`/demands/${id}`, { method: 'DELETE' });
+                showToast('Demand deleted successfully');
+                loadDemand();
+            } catch (error) {
+                console.error('Delete demand error:', error);
+            }
+        }
+
+        // Planned Orders
+        async function loadPlannedOrders() {
+            try {
+                const orders = await apiCall('/planned-orders');
+                renderPlannedOrders(orders);
+            } catch (error) {
+                console.error('Planned orders load error:', error);
+            }
+        }
+
+        function renderPlannedOrders(orders) {
+            const tbody = document.getElementById('orders-table-body');
+            
+            if (!orders || orders.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <i data-lucide="clipboard-list" style="width:48px;height:48px;"></i>
+                            <h3>No Planned Orders</h3>
+                            <p>Run MRP calculation to generate orders</p>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            tbody.innerHTML = orders.map(o => {
+                const statusClass = o.status === 'released' ? 'badge-info' : 
+                                    o.status === 'completed' ? 'badge-success' : 'badge-warning';
+                return `
+                    <tr>
+                        <td>${o.product?.code || 'N/A'}</td>
+                        <td><span class="badge ${o.order_type === 'purchase' ? 'badge-raw' : 'badge-component'}">${o.order_type}</span></td>
+                        <td>${o.quantity.toFixed(2)}</td>
+                        <td>${o.start_date}</td>
+                        <td>${o.end_date}</td>
+                        <td><span class="badge ${statusClass}">${o.status}</span></td>
+                        <td>${o.action_message || '-'}</td>
+                        <td>
+                            <div class="actions">
+                                <button class="action-btn btn-sm" onclick="updateOrderStatus(${o.id}, 'released')" title="Release">
+                                    <i data-lucide="check" style="width:14px;height:14px;"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        async function updateOrderStatus(id, status) {
+            try {
+                await apiCall(`/planned-orders/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status })
+                });
+                showToast('Order status updated');
+                loadPlannedOrders();
+            } catch (error) {
+                console.error('Update order status error:', error);
+            }
+        }
+
+        // MRP
+        document.getElementById('mrp-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const params = {
+                planning_horizon_start: document.getElementById('mrp-start').value,
+                planning_horizon_end: document.getElementById('mrp-end').value,
+                use_safety_stock: document.getElementById('mrp-safety-stock').checked,
+                use_min_stock_level: document.getElementById('mrp-min-stock').checked
+            };
+
+            try {
+                showToast('Running MRP calculation...', 'warning');
+                const result = await apiCall('/mrp/run', {
+                    method: 'POST',
+                    body: JSON.stringify(params)
+                });
+                
+                showToast(`MRP completed! ${result.summary.total_orders_proposed} orders proposed`);
+                renderMRPResults(result);
+                loadPlannedOrders();
+                loadDashboard();
+            } catch (error) {
+                console.error('MRP run error:', error);
+            }
+        });
+
+        function renderMRPResults(result) {
+            const container = document.getElementById('mrp-results-container');
+            
+            if (!result.requirements || result.requirements.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i data-lucide="check-circle" style="width:48px;height:48px;color:var(--success);"></i>
+                        <h3>No Requirements Found</h3>
+                        <p>All demands are covered by existing inventory</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = `
+                <div style="margin-bottom: 24px;">
+                    <h4 style="margin-bottom: 8px;">Summary</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                        <div class="stat-card" style="padding: 16px;">
+                            <div class="stat-value" style="font-size: 24px;">${result.summary.total_products_planned}</div>
+                            <div class="stat-label">Products Planned</div>
+                        </div>
+                        <div class="stat-card" style="padding: 16px;">
+                            <div class="stat-value" style="font-size: 24px;">${result.summary.total_orders_proposed}</div>
+                            <div class="stat-label">Orders Proposed</div>
+                        </div>
+                        <div class="stat-card" style="padding: 16px;">
+                            <div class="stat-value" style="font-size: 24px;">${result.summary.total_quantity.toFixed(0)}</div>
+                            <div class="stat-label">Total Quantity</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Period</th>
+                                <th>Gross Req</th>
+                                <th>Scheduled</th>
+                                <th>Projected</th>
+                                <th>Net Req</th>
+                                <th>Planned Qty</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${result.requirements.filter(r => r.planned_order_quantity > 0).map(r => `
+                                <tr>
+                                    <td>${r.product_code}</td>
+                                    <td>${r.period}</td>
+                                    <td>${r.gross_requirement.toFixed(2)}</td>
+                                    <td>${r.scheduled_receipts.toFixed(2)}</td>
+                                    <td>${r.projected_on_hand.toFixed(2)}</td>
+                                    <td>${r.net_requirement.toFixed(2)}</td>
+                                    <td><strong>${r.planned_order_quantity.toFixed(2)}</strong></td>
+                                    <td>${r.action_message || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function loadMRPResults() {
+            try {
+                const result = await apiCall('/mrp/results');
+                if (result.orders && result.orders.length > 0) {
+                    document.getElementById('mrp-results-container').innerHTML = `
+                        <div class="empty-state">
+                            <i data-lucide="clipboard-list" style="width:48px;height:48px;"></i>
+                            <h3>${result.total_orders} Planned Orders</h3>
+                            <p>Run MRP to see detailed requirements</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Load MRP results error:', error);
+            }
+        }
+
+        // Reports
+        async function loadReports() {
+            try {
+                const [products, coverage] = await Promise.all([
+                    apiCall('/products'),
+                    apiCall('/reports/mrp-coverage')
+                ]);
+
+                // Update product type chart
+                const typeCount = { raw_material: 0, component: 0, finished_good: 0 };
+                products.forEach(p => {
+                    if (typeCount.hasOwnProperty(p.product_type)) {
+                        typeCount[p.product_type]++;
+                    }
+                });
+                
+                productTypeChart.data.datasets[0].data = [
+                    typeCount.raw_material,
+                    typeCount.component,
+                    typeCount.finished_good
+                ];
+                productTypeChart.update();
+
+                // Update coverage chart
+                coverageChart.data.labels = coverage.slice(0, 5).map(c => c.product_code);
+                coverageChart.data.datasets[0].data = coverage.slice(0, 5).map(c => c.total_demand);
+                coverageChart.data.datasets[1].data = coverage.slice(0, 5).map(c => c.total_planned);
+                coverageChart.update();
+
+                // Render coverage report
+                const tbody = document.getElementById('coverage-report-body');
+                
+                if (!coverage || coverage.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                <p>No coverage data available</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = coverage.map(c => `
+                    <tr>
+                        <td>${c.product_code}</td>
+                        <td>${c.total_demand.toFixed(2)}</td>
+                        <td>${c.total_planned.toFixed(2)}</td>
+                        <td>${c.coverage_percentage.toFixed(1)}%</td>
+                        <td><span class="badge ${c.coverage_status === 'COVERED' ? 'badge-success' : 'badge-warning'}">${c.coverage_status}</span></td>
+                    </tr>
+                `).join('');
+
+            } catch (error) {
+                console.error('Reports load error:', error);
+            }
+        }
+
+        function exportReport(type) {
+            showToast('Export feature coming soon!', 'warning');
+        }
+    </script>
+</body>
+</html>
