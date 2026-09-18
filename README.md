@@ -1,75 +1,65 @@
-<!-- README ini dihasilkan otomatis oleh .github/workflows/generate-readme.yml -->
-<!-- Jangan edit manual: perubahan akan ditimpa pada run berikutnya. -->
+<!-- README ini dihasilkan otomatis oleh workflow .github/workflows/generate-readme.yml -->
+<!-- Jangan edit manual; perubahan akan ditim pada run berikutnya. -->
 
-<h1 align="center">MRP++ 👋</h1>
+<h1 align="center">MRP++ | Material Requirements Planning 👋</h1>
 
 <p align="center">
-  <em>mrp-plus</em>
+  <strong>Run MRP calculation to see planned orders</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/antono4/mrp-plus"><img alt="GitHub repo" src="https://img.shields.io/badge/GitHub-antono4/mrp-plus-blue?logo=github"></a>
   <a href="https://antono4.github.io/mrp-plus/"><img alt="Live Demo" src="https://img.shields.io/badge/Live%20Demo-Online-success?logo=githubpages"></a>
-  <img alt="Files" src="https://img.shields.io/badge/Files-15-informational">
-  <img alt="Last commit" src="https://img.shields.io/github/last-commit/antono4/mrp-plus">
+  <img alt="Files" src="https://img.shields.io/badge/Files-18-informational">
+  <img alt="Updated" src="https://img.shields.io/badge/Updated-2026-09-18 08:43:08 WIB-lightgrey">
 </p>
 
 ---
 
 ## 📖 Tentang
 
-Repository **`mrp-plus`** adalah proyek Python yang dibangun dengan HTML, Python.
-Situs ini diterbitkan melalui **GitHub Pages** dan dapat diakses di [`https://antono4.github.io/mrp-plus/`](https://antono4.github.io/mrp-plus/).
+Repository **`mrp-plus`** adalah situs web pribadi / portofolio yang diterbitkan melalui **GitHub Pages**. Situs utama berada di [`https://antono4.github.io/mrp-plus/`](https://antono4.github.io/mrp-plus/).
 
 ## 🗂️ Struktur Proyek
 
 ```
 mrp-plus/
-.github/
-  workflows/
-.gitignore
-Dockerfile
-LICENSE
-SPEC.md
-api/
-  index.py
-database.py
-index.html
-main.py
-models.py
-mrp_engine.py
-requirements.txt
-sample_data.py
-schemas.py
-vercel.json
+├── index.html          # Halaman utama (landing / portofolio)
+├── assets/             # Aset statis (css, js, img, vendor)
+├── forms/               # Form handler (PHP)
 ```
 
 ## 🛠️ Teknologi
 
-Berdasarkan ekstensi berkas yang terdeteksi di repository:
+Berdasarkan isi repository, proyek ini menggunakan:
 
 - `HTML`
 - `Python`
 
-> Total **15 berkas** di repository (di luar `.git`, `node_modules`, `dist`, dan `build`).
+> Total **18 file** terdeteksi di repository.
 
 ## 🚀 Menjalankan Secara Lokal
 
-Butuh Python 3:
+Karena ini situs statis (HTML/CSS/JS/PHP), cukup buka `index.html` di browser, atau jalankan server lokal:
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# Tanpa dependency
+python3 -m http.server 8000
+# lalu buka http://localhost:8000
+
+# atau dengan PHP (untuk form handler di forms/)
+php -S localhost:8000
 ```
 
 ## 📬 Kontak
 
 - GitHub: [antono4](https://github.com/antono4)
+- Situs: [https://antono4.github.io/mrp-plus/](https://antono4.github.io/mrp-plus/)
 
 ## 📄 Lisensi
 
-Proyek ini dilisensikan di bawah MIT License — lihat berkas [`LICENSE`](./LICENSE).
+Lihat berkas [`LICENSE`](./LICENSE) untuk informasi lisensi.
 
 ---
 
-<sub>README ini di-generate otomatis oleh GitHub Actions `.github/workflows/generate-readme.yml`.</sub>
+<sub>README ini di-generate otomatis pada **2026-09-18 08:43:08 WIB** oleh GitHub Actions `.github/workflows/generate-readme.yml`.</sub>
