@@ -1,1 +1,32 @@
-Last updated: 2026-10-03 13:59:34 WIB
+# mrp-plus
+
+
+
+## 📋 Overview
+
+This repository contains **21 files** and is built with the following technologies:
+
+Python, HTML, Docker
+
+## 🚀 Quick Start
+
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+## ✨ Features
+
+- 🐳 Docker support
+- 📝 Auto-generated documentation
+
+## 🛠️ Technologies
+
+Python, HTML, Docker
+
+## 📄 License
+
+MIT License
+
+---
+*Last updated: 2026-10-03 14:00:34 WIB*
