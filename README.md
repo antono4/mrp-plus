@@ -174,6 +174,15 @@ docker build -t mrp-plus .
 docker run --rm -p 8000:8000 mrp-plus
 ```
 
+### Menjalankan pengujian
+
+```bash
+pip install pytest
+pytest test_api.py -v
+```
+
+`test_api.py` menjalankan 20 pengujian pada API dan mesin MRP: validasi enum, deteksi referensi melingkar BOM, ledakan BOM multi-level, konsistensi arah transaksi stok, perhitungan tren persediaan, serta isi berkas ekspor CSV.
+
 ### Data contoh
 
 `sample_data.py` mengisi database dengan 2 gudang, 10 produk (bahan baku, komponen, produk jadi), 10 catatan persediaan, 11 baris BOM, dan 5 catatan demand. Skrip ini aman dijalankan berulang: bila data sudah ada, skrip berhenti tanpa menggandakan data.
@@ -200,6 +209,7 @@ Seluruh endpoint berada di bawah prefiks `/api`.
 | `GET` | `/api/bom` | Daftar baris BOM; filter `parent_id`, `child_id` |
 | `GET` | `/api/bom/{id}` | Detail baris BOM |
 | `POST` | `/api/bom` | Tambah baris BOM (menolak referensi melingkar) |
+| `POST` | `/api/bom/{id}/clone` | Gandakan baris BOM ke induk lain |
 | `PUT` | `/api/bom/{id}` | Ubah baris BOM |
 | `DELETE` | `/api/bom/{id}` | Hapus baris BOM |
 
@@ -211,6 +221,7 @@ Seluruh endpoint berada di bawah prefiks `/api`.
 | `GET` | `/api/warehouses/{id}` | Detail gudang |
 | `POST` | `/api/warehouses` | Tambah gudang |
 | `PUT` | `/api/warehouses/{id}` | Ubah gudang |
+| `DELETE` | `/api/warehouses/{id}` | Hapus gudang (409 bila masih berisi persediaan) |
 | `GET` | `/api/inventory` | Daftar persediaan; filter `product_id`, `warehouse_id`, `low_stock_only` |
 | `GET` | `/api/inventory/{id}` | Detail catatan persediaan |
 | `POST` | `/api/inventory` | Tambah atau perbarui persediaan |
@@ -236,9 +247,15 @@ Seluruh endpoint berada di bawah prefiks `/api`.
 | Metode | Endpoint | Keterangan |
 |--------|----------|------------|
 | `POST` | `/api/mrp/run` | Jalankan perhitungan MRP |
+| `GET` | `/api/mrp/runs` | Riwayat perhitungan MRP; parameter `limit` |
 | `GET` | `/api/mrp/results` | Hasil MRP yang dikelompokkan per produk |
 | `GET` | `/api/reports/inventory-status` | Laporan status persediaan |
 | `GET` | `/api/reports/mrp-coverage` | Laporan cakupan MRP |
+| `GET` | `/api/reports/inventory-trend` | Tren nilai persediaan per bulan; parameter `months` |
+| `GET` | `/api/reports/summary` | Angka agregat untuk grafik laporan |
+| `GET` | `/api/export/inventory-status` | Unduh laporan status persediaan (CSV) |
+| `GET` | `/api/export/mrp-coverage` | Unduh laporan cakupan MRP (CSV) |
+| `GET` | `/api/export/planned-orders` | Unduh pesanan terencana (CSV); filter `status` |
 | `GET` | `/api/dashboard` | Ringkasan angka untuk dashboard |
 | `GET` | `/api/dashboard/alerts` | Daftar peringatan stok menipis |
 | `GET` | `/api/health` | Pemeriksaan kesehatan layanan |
@@ -272,10 +289,12 @@ curl -X POST http://localhost:8000/api/mrp/run \
 ## Catatan dan Batasan
 
 - **Tanpa autentikasi.** CORS dibuka untuk semua origin dan tidak ada lapisan login. Aplikasi ini ditujukan untuk pemakaian internal, demo, atau pengembangan, bukan untuk dipublikasikan langsung ke internet.
-- **Produk dihapus secara soft delete.** Menghapus produk hanya menandainya tidak aktif agar riwayat BOM dan demand tetap utuh. BOM dan demand dihapus permanen.
-- **Gudang dan persediaan belum punya endpoint hapus.** Keduanya hanya dapat ditambah dan diubah.
-- **Deploy Vercel masih eksperimental.** `api/index.py` membutuhkan paket `asgiref` yang belum tercantum di `requirements.txt`, dan pembungkusan aplikasi ASGI perlu ditinjau ulang. Untuk pemakaian nyata, jalankan lewat Uvicorn atau Docker.
+- **Produk dihapus secara soft delete.** Menghapus produk hanya menandainya tidak aktif agar riwayat BOM dan demand tetap utuh. BOM, demand, dan gudang dihapus permanen.
+- **Gudang hanya dapat dihapus saat kosong.** Endpoint `DELETE /api/warehouses/{id}` menolak penghapusan (HTTP 409) selama gudang masih memiliki catatan persediaan.
+- **Deploy Vercel bersifat opsional.** `api/index.py` sudah diperbaiki dan memakai `httpx.ASGITransport` untuk menjembatani kontrak WSGI Vercel ke aplikasi ASGI. Berkas SQLite diarahkan ke `/tmp` karena sistem berkas Vercel bersifat read-only. Untuk pemakaian nyata, jalankan lewat Uvicorn atau Docker.
 - **SQLite berbasis satu berkas.** Cocok untuk satu instans. Untuk beberapa instans atau beban tulis tinggi, gunakan database lain lewat `DATABASE_URL`.
+- **Tren nilai persediaan direkonstruksi.** Tidak ada snapshot historis, jadi grafik tren dihitung dengan memutar balik riwayat transaksi dari nilai saat ini. Akurasinya bergantung pada kelengkapan log transaksi.
+- **Nilai persediaan memakai biaya standar.** Valuasi memakai `unit_cost` produk, belum mendukung FIFO/average cost per lot.
 
 ## Lisensi
 
