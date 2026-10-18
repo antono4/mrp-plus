@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MRP++ | Material Requirements Planning</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E3A5F'/%3E%3Cpath d='M8 22V10h4l4 6 4-6h4v12h-3.2v-6.6L16.6 21h-1.2l-4.2-5.6V22z' fill='%23fff'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -316,6 +317,65 @@
             overflow-x: auto;
         }
 
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        th.sortable:hover {
+            color: var(--primary);
+        }
+
+        th.sortable::after {
+            content: '\2195';
+            margin-left: 6px;
+            opacity: 0.35;
+            font-size: 11px;
+        }
+
+        th.sortable[data-sort-dir="asc"]::after {
+            content: '\2191';
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        th.sortable[data-sort-dir="desc"]::after {
+            content: '\2193';
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .pagination button {
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination button:not(:disabled):hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -335,8 +395,12 @@
             background: var(--background);
         }
 
-        tr:hover {
-            background: var(--background);
+        tbody tr:nth-child(even) {
+            background: #F9FAFB;
+        }
+
+        tbody tr:hover {
+            background: #F3F4F6;
         }
 
         .badge {
@@ -965,6 +1029,10 @@
                             </div>
                         </div>
                         <div class="form-group">
+                            <label class="form-label">Planning Period Length (days)</label>
+                            <input type="number" class="form-input" id="mrp-period-length" min="1" max="365" value="7">
+                        </div>
+                        <div class="form-group">
                             <label class="form-checkbox">
                                 <input type="checkbox" id="mrp-safety-stock" checked>
                                 <span>Consider Safety Stock</span>
@@ -1057,9 +1125,14 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">MRP Coverage Report</span>
-                    <button class="btn btn-sm btn-secondary" onclick="exportReport('coverage')">
-                        <i data-lucide="download"></i> Export
-                    </button>
+                    <div class="actions">
+                        <button class="btn btn-sm btn-secondary" onclick="exportReport('mrp-coverage', 'csv')">
+                            <i data-lucide="download"></i> CSV
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="exportReport('mrp-coverage', 'pdf')">
+                            <i data-lucide="file-text"></i> PDF
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-container">
@@ -1277,6 +1350,58 @@
         </div>
     </div>
 
+    <!-- Transaction Modal -->
+    <div class="modal-overlay" id="transaction-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Record Inventory Transaction</h3>
+                <button class="modal-close" onclick="closeModal('transaction-modal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="transaction-form">
+                    <input type="hidden" id="transaction-inventory-id">
+                    <div class="form-group">
+                        <label class="form-label">Product / Warehouse</label>
+                        <input type="text" class="form-input" id="transaction-target" disabled>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Transaction Type *</label>
+                            <select class="form-select" id="transaction-type" required>
+                                <option value="purchase">Purchase (adds stock)</option>
+                                <option value="production">Production (adds stock)</option>
+                                <option value="sale">Sale (removes stock)</option>
+                                <option value="adjustment">Adjustment (signed)</option>
+                                <option value="transfer">Transfer (signed)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Quantity *</label>
+                            <input type="number" class="form-input" id="transaction-quantity" step="0.01" value="0" required>
+                            <small id="transaction-hint" style="color:var(--text-secondary);font-size:12px;">
+                                Use a negative value to remove stock.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Reference</label>
+                        <input type="text" class="form-input" id="transaction-reference" placeholder="PO number, order id...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notes</label>
+                        <input type="text" class="form-input" id="transaction-notes" placeholder="Optional notes">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('transaction-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTransaction()">Record Transaction</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Demand Modal -->
     <div class="modal-overlay" id="demand-modal">
         <div class="modal">
@@ -1388,12 +1513,14 @@
                 });
             });
 
+            initSearch();
+
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     const parent = tab.parentElement;
                     parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
-                    
+
                     if (parent.id === 'product-type-tabs') {
                         loadProducts(tab.dataset.type);
                     }
@@ -1404,15 +1531,15 @@
         function navigateTo(page) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            
+
             document.getElementById(`page-${page}`).classList.add('active');
             document.querySelector(`[data-page="${page}"]`).classList.add('active');
-            
-            document.querySelector('.header-title').textContent = 
+
+            document.querySelector('.header-title').textContent =
                 page.charAt(0).toUpperCase() + page.slice(1).replace(/-/g, ' ');
-            
+
             lucide.createIcons();
-            
+
             // Load page data
             switch(page) {
                 case 'dashboard': loadDashboard(); break;
@@ -1431,18 +1558,18 @@
             const today = new Date();
             const endDate = new Date(today);
             endDate.setMonth(endDate.getMonth() + 3);
-            
+
             document.getElementById('mrp-start').value = today.toISOString().split('T')[0];
             document.getElementById('mrp-end').value = endDate.toISOString().split('T')[0];
-            
+
             // Set default demand date
             const nextWeek = new Date(today);
             nextWeek.setDate(nextWeek.getDate() + 7);
             document.getElementById('demand-due-date').value = nextWeek.toISOString().split('T')[0];
-            
+
             // Initialize charts
             initCharts();
-            
+
             // Load initial data
             loadDashboard();
         }
@@ -1459,14 +1586,14 @@
                 }
             };
 
-            // Inventory Value Chart
+            // Inventory Value Chart (populated from /api/reports/inventory-trend)
             inventoryChart = new Chart(document.getElementById('inventoryChart'), {
                 type: 'line',
                 data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    labels: [],
                     datasets: [{
                         label: 'Inventory Value',
-                        data: [45000, 52000, 48000, 61000, 55000, 67000],
+                        data: [],
                         borderColor: '#1E3A5F',
                         backgroundColor: 'rgba(30, 58, 95, 0.1)',
                         fill: true,
@@ -1476,34 +1603,35 @@
                 options: chartOptions
             });
 
-            // Coverage Chart
+            // Coverage Chart (populated from /api/reports/mrp-coverage)
             coverageChart = new Chart(document.getElementById('coverageChart'), {
                 type: 'bar',
                 data: {
-                    labels: ['Product A', 'Product B', 'Product C', 'Product D'],
+                    labels: [],
                     datasets: [{
                         label: 'Demand',
-                        data: [100, 150, 80, 120],
+                        data: [],
                         backgroundColor: '#EF4444'
                     }, {
                         label: 'Coverage',
-                        data: [90, 160, 85, 100],
+                        data: [],
                         backgroundColor: '#10B981'
                     }]
                 },
                 options: {
                     ...chartOptions,
+                    plugins: { legend: { display: true } },
                     scales: { y: { beginAtZero: true } }
                 }
             });
 
-            // Product Type Chart
+            // Product Type Chart (populated from /api/reports/summary)
             productTypeChart = new Chart(document.getElementById('productTypeChart'), {
                 type: 'doughnut',
                 data: {
                     labels: ['Raw Materials', 'Components', 'Finished Goods'],
                     datasets: [{
-                        data: [45, 35, 20],
+                        data: [0, 0, 0],
                         backgroundColor: ['#4F46E5', '#D97706', '#059669']
                     }]
                 },
@@ -1521,14 +1649,202 @@
             toast.className = `toast ${type}`;
             toast.innerHTML = `
                 <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'alert-circle'}"></i>
-                <span>${message}</span>
+                <span>${escapeHtml(message)}</span>
             `;
             container.appendChild(toast);
             lucide.createIcons();
-            
+
             setTimeout(() => {
                 toast.remove();
             }, 4000);
+        }
+
+        // ---------------------------------------------------------------
+        // Rendering helpers. Every value that originates from user input is
+        // escaped before it reaches innerHTML, so a product name or note cannot
+        // inject markup or script.
+        // ---------------------------------------------------------------
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function parseCsv(text) {
+            const rows = [];
+            let row = [], field = '', quoted = false;
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (quoted) {
+                    if (ch === '"') {
+                        if (text[i + 1] === '"') { field += '"'; i++; }
+                        else quoted = false;
+                    } else field += ch;
+                } else if (ch === '"') {
+                    quoted = true;
+                } else if (ch === ',') {
+                    row.push(field); field = '';
+                } else if (ch === '\n') {
+                    row.push(field); rows.push(row); row = []; field = '';
+                } else if (ch !== '\r') {
+                    field += ch;
+                }
+            }
+            if (field !== '' || row.length) { row.push(field); rows.push(row); }
+            return rows.filter(r => r.some(c => c !== ''));
+        }
+
+        // ---------------------------------------------------------------
+        // Data tables: sorting, pagination and global search.
+        // Each table registers a renderer; the helpers below keep sort and
+        // page state per table id and re-render through the same renderer.
+        // ---------------------------------------------------------------
+        const PAGE_SIZE = 10;
+        const tableState = {};
+        const tableRegistry = {};
+
+        function registerTable(tbodyId, columns, renderRows, opts = {}) {
+            const state = tableState[tbodyId] || (tableState[tbodyId] = {
+                sortKey: opts.defaultSortKey || null,
+                sortDir: opts.defaultSortDir || 'asc',
+                page: 1,
+            });
+            state.columns = columns;
+            state.renderRows = renderRows;
+            state.opts = opts;
+            tableRegistry[tbodyId] = state;
+            return state;
+        }
+
+        function compareValues(a, b) {
+            if (a === null || a === undefined) return 1;
+            if (b === null || b === undefined) return -1;
+            if (typeof a === 'number' && typeof b === 'number') return a - b;
+            return String(a).localeCompare(String(b), undefined, { numeric: true });
+        }
+
+        function updateTable(tbodyId, rows, keepPage = false) {
+            const state = tableRegistry[tbodyId];
+            if (!state) return;
+
+            const term = (globalSearchTerm || '').toLowerCase();
+            let data = rows;
+
+            if (term) {
+                data = data.filter(row =>
+                    Object.values(row).some(v =>
+                        v !== null && v !== undefined && String(v).toLowerCase().includes(term)
+                    )
+                );
+            }
+
+            if (state.sortKey) {
+                const dir = state.sortDir === 'desc' ? -1 : 1;
+                data = [...data].sort((a, b) =>
+                    dir * compareValues(a[state.sortKey], b[state.sortKey])
+                );
+            }
+
+            const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+            if (!keepPage) state.page = 1;
+            state.page = Math.min(Math.max(1, state.page), totalPages);
+
+            const start = (state.page - 1) * PAGE_SIZE;
+            const pageRows = data.slice(start, start + PAGE_SIZE);
+
+            state.renderRows(pageRows, data.length);
+            renderPagination(tbodyId, state.page, totalPages, data.length);
+            applySortIndicators(tbodyId);
+            lucide.createIcons();
+        }
+
+        function renderPagination(tbodyId, page, totalPages, totalRows) {
+            const table = document.querySelector(`#${tbodyId}`)?.closest('table');
+            if (!table) return;
+
+            let bar = table.parentElement.querySelector('.pagination');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.className = 'pagination';
+                table.parentElement.appendChild(bar);
+            }
+
+            if (totalRows === 0) {
+                bar.innerHTML = '';
+                return;
+            }
+
+            bar.innerHTML = `
+                <span>${totalRows} row${totalRows === 1 ? '' : 's'} &middot; page ${page} of ${totalPages}</span>
+                <button ${page <= 1 ? 'disabled' : ''} data-page-action="prev">&larr; Prev</button>
+                <button ${page >= totalPages ? 'disabled' : ''} data-page-action="next">Next &rarr;</button>
+            `;
+
+            bar.querySelector('[data-page-action="prev"]').onclick = () => {
+                tableRegistry[tbodyId].page--;
+                refreshTable(tbodyId);
+            };
+            bar.querySelector('[data-page-action="next"]').onclick = () => {
+                tableRegistry[tbodyId].page++;
+                refreshTable(tbodyId);
+            };
+        }
+
+        function refreshTable(tbodyId) {
+            const state = tableRegistry[tbodyId];
+            if (state && state.sourceRows) updateTable(tbodyId, state.sourceRows, true);
+        }
+
+        function setTableSource(tbodyId, rows) {
+            const state = tableRegistry[tbodyId];
+            if (state) state.sourceRows = rows;
+        }
+
+        function applySortIndicators(tbodyId) {
+            const state = tableRegistry[tbodyId];
+            const table = document.querySelector(`#${tbodyId}`)?.closest('table');
+            if (!state || !table) return;
+
+            table.querySelectorAll('th').forEach((th, index) => {
+                const column = state.columns[index];
+                if (!column || !column.key) return;
+                th.classList.add('sortable');
+                th.dataset.sortDir = state.sortKey === column.key ? state.sortDir : '';
+                th.onclick = () => {
+                    if (state.sortKey === column.key) {
+                        state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        state.sortKey = column.key;
+                        state.sortDir = 'asc';
+                    }
+                    state.page = 1;
+                    refreshTable(tbodyId);
+                };
+            });
+        }
+
+        let globalSearchTerm = '';
+
+        function initSearch() {
+            const input = document.querySelector('.search-box input');
+            if (!input) return;
+
+            let timer;
+            input.addEventListener('input', () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    globalSearchTerm = input.value.trim();
+                    // Re-render every table that has loaded data.
+                    Object.keys(tableRegistry).forEach(id => {
+                        const state = tableRegistry[id];
+                        if (state.sourceRows) updateTable(id, state.sourceRows, true);
+                    });
+                }, 200);
+            });
         }
 
         // Modal Functions
@@ -1551,12 +1867,12 @@
                     headers: { 'Content-Type': 'application/json', ...options.headers },
                     ...options
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.detail || 'API Error');
                 }
-                
+
                 return await response.json();
             } catch (error) {
                 showToast(error.message, 'error');
@@ -1568,17 +1884,16 @@
         async function loadDashboard() {
             try {
                 const summary = await apiCall('/dashboard');
-                
+
                 document.getElementById('stat-products').textContent = summary.total_products || 0;
                 document.getElementById('stat-demands').textContent = summary.total_demands || 0;
                 document.getElementById('stat-orders').textContent = summary.pending_orders || 0;
                 document.getElementById('stat-alerts').textContent = summary.low_stock_items || 0;
 
-                // Update inventory chart with mock data based on inventory value
-                const mockInventoryData = Array(6).fill(0).map(() => 
-                    (summary.inventory_value || 50000) * (0.8 + Math.random() * 0.4)
-                );
-                inventoryChart.data.datasets[0].data = mockInventoryData;
+                // Inventory value trend comes from real transaction history.
+                const trend = await apiCall('/reports/inventory-trend?months=6');
+                inventoryChart.data.labels = trend.map(t => t.period);
+                inventoryChart.data.datasets[0].data = trend.map(t => t.value);
                 inventoryChart.update();
 
                 // Load alerts
@@ -1596,7 +1911,7 @@
 
         function renderAlerts(alerts) {
             const container = document.getElementById('alerts-list');
-            
+
             if (!alerts || alerts.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state" style="padding: 24px;">
@@ -1610,20 +1925,20 @@
                 <div class="alert-item ${alert.current_stock < 0 ? '' : 'warning'}">
                     <i data-lucide="alert-triangle" style="color: var(--danger);"></i>
                     <div class="alert-content">
-                        <div class="alert-title">${alert.product_code}</div>
+                        <div class="alert-title">${escapeHtml(alert.product_code)}</div>
                         <div class="alert-desc">
                             Current: ${alert.current_stock.toFixed(2)} | Min: ${alert.min_stock_level.toFixed(2)}
                         </div>
                     </div>
                 </div>
             `).join('');
-            
+
             lucide.createIcons();
         }
 
         function renderInventoryOverview(inventory) {
             const tbody = document.getElementById('inventory-table-body');
-            
+
             if (!inventory || inventory.length === 0) {
                 tbody.innerHTML = `
                     <tr>
@@ -1638,7 +1953,7 @@
             tbody.innerHTML = inventory.map(inv => {
                 const available = inv.quantity - inv.reserved_quantity;
                 let status, statusClass;
-                
+
                 if (available < 0) {
                     status = 'NEGATIVE'; statusClass = 'badge-danger';
                 } else if (available < inv.product?.min_stock_level) {
@@ -1649,13 +1964,13 @@
 
                 return `
                     <tr>
-                        <td>${inv.product?.code || 'N/A'}</td>
-                        <td>${inv.warehouse?.name || 'N/A'}</td>
+                        <td>${escapeHtml(inv.product?.code || 'N/A')}</td>
+                        <td>${escapeHtml(inv.warehouse?.name || 'N/A')}</td>
                         <td>${inv.quantity.toFixed(2)}</td>
                         <td>${inv.reserved_quantity.toFixed(2)}</td>
                         <td>${available.toFixed(2)}</td>
                         <td>${inv.product?.min_stock_level || 0}</td>
-                        <td><span class="badge ${statusClass}">${status}</span></td>
+                        <td><span class="badge ${statusClass}">${escapeHtml(status)}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -1674,50 +1989,57 @@
 
         function renderProducts(products) {
             const tbody = document.getElementById('products-table-body');
-            
-            if (!products || products.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="8" class="empty-state">
-                            <i data-lucide="package" style="width:48px;height:48px;"></i>
-                            <h3>No Products</h3>
-                            <p>Add your first product to get started</p>
-                        </td>
-                    </tr>
-                `;
-                lucide.createIcons();
-                return;
-            }
+            const columns = [
+                { key: 'code' }, { key: 'name' }, { key: 'product_type' },
+                { key: 'unit' }, { key: 'unit_cost' }, { key: 'lead_time_days' },
+                { key: 'is_active' }, {},
+            ];
 
-            tbody.innerHTML = products.map(p => {
-                const typeClass = p.product_type === 'raw_material' ? 'badge-raw' : 
-                                  p.product_type === 'component' ? 'badge-component' : 'badge-finished';
-                const typeLabel = p.product_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            registerTable('products-table-body', columns, (rows) => {
+                if (rows.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                <i data-lucide="package" style="width:48px;height:48px;"></i>
+                                <h3>No Products</h3>
+                                <p>Add your first product to get started</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
 
-                return `
-                    <tr>
-                        <td><strong>${p.code}</strong></td>
-                        <td>${p.name}</td>
-                        <td><span class="badge ${typeClass}">${typeLabel}</span></td>
-                        <td>${p.unit}</td>
-                        <td>$${p.unit_cost.toFixed(2)}</td>
-                        <td>${p.lead_time_days} days</td>
-                        <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-danger'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
-                        <td>
-                            <div class="actions">
-                                <button class="action-btn" onclick="editProduct(${p.id})" title="Edit">
-                                    <i data-lucide="edit-2" style="width:16px;height:16px;"></i>
-                                </button>
-                                <button class="action-btn danger" onclick="deleteProduct(${p.id})" title="Delete">
-                                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-            
-            lucide.createIcons();
+                tbody.innerHTML = rows.map(p => {
+                    const typeClass = p.product_type === 'raw_material' ? 'badge-raw' :
+                                      p.product_type === 'component' ? 'badge-component' : 'badge-finished';
+                    const typeLabel = p.product_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                    return `
+                        <tr>
+                            <td><strong>${escapeHtml(p.code)}</strong></td>
+                            <td>${escapeHtml(p.name)}</td>
+                            <td><span class="badge ${typeClass}">${typeLabel}</span></td>
+                            <td>${escapeHtml(p.unit)}</td>
+                            <td>$${p.unit_cost.toFixed(2)}</td>
+                            <td>${p.lead_time_days} days</td>
+                            <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-danger'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <div class="actions">
+                                    <button class="action-btn" onclick="editProduct(${p.id})" title="Edit">
+                                        <i data-lucide="edit-2" style="width:16px;height:16px;"></i>
+                                    </button>
+                                    <button class="action-btn danger" onclick="deleteProduct(${p.id})" title="Delete">
+                                        <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }, { defaultSortKey: 'code' });
+
+            setTableSource('products-table-body', products);
+            updateTable('products-table-body', products);
         }
 
         async function openProductModal(id = null) {
@@ -1725,7 +2047,7 @@
             document.getElementById('product-id').value = '';
             document.getElementById('product-modal-title').textContent = 'Add Product';
             document.getElementById('product-unit').value = 'PCS';
-            
+
             if (id) {
                 const product = await apiCall(`/products/${id}`);
                 document.getElementById('product-id').value = product.id;
@@ -1744,7 +2066,7 @@
                 document.getElementById('product-fixed-qty').value = product.fixed_order_qty;
                 document.getElementById('product-modal-title').textContent = 'Edit Product';
             }
-            
+
             openModal('product-modal');
         }
 
@@ -1754,7 +2076,7 @@
 
         async function saveProduct() {
             const id = document.getElementById('product-id').value;
-            
+
             const data = {
                 code: document.getElementById('product-code').value,
                 name: document.getElementById('product-name').value,
@@ -1784,7 +2106,7 @@
                     });
                     showToast('Product created successfully');
                 }
-                
+
                 closeModal('product-modal');
                 loadProducts();
             } catch (error) {
@@ -1794,7 +2116,7 @@
 
         async function deleteProduct(id) {
             if (!confirm('Are you sure you want to delete this product?')) return;
-            
+
             try {
                 await apiCall(`/products/${id}`, { method: 'DELETE' });
                 showToast('Product deleted successfully');
@@ -1818,8 +2140,8 @@
         async function loadBOMDropdowns() {
             try {
                 const products = await apiCall('/products?is_active=true');
-                const options = products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
-                
+                const options = products.map(p => `<option value="${p.id}">${escapeHtml(p.code)} - ${escapeHtml(p.name)}</option>`).join('');
+
                 document.getElementById('bom-parent').innerHTML = '<option value="">Select Parent</option>' + options;
                 document.getElementById('bom-child').innerHTML = '<option value="">Select Child</option>' + options;
             } catch (error) {
@@ -1829,40 +2151,91 @@
 
         function renderBOM(bom) {
             const tbody = document.getElementById('bom-table-body');
-            
-            if (!bom || bom.length === 0) {
-                tbody.innerHTML = `
+            const columns = [
+                { key: 'parent_code' }, { key: 'child_code' }, { key: 'quantity' },
+                { key: 'scrap_percentage' }, { key: 'effective_from' }, { key: 'effective_to' }, {},
+            ];
+
+            const flat = (bom || []).map(item => ({
+                ...item,
+                parent_code: item.parent_product?.code || 'N/A',
+                child_code: item.child_product?.code || 'N/A',
+            }));
+
+            registerTable('bom-table-body', columns, (rows) => {
+                if (rows.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="empty-state">
+                                <i data-lucide="git-branch" style="width:48px;height:48px;"></i>
+                                <h3>No BOM Items</h3>
+                                <p>Add bill of materials to start planning</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = rows.map(item => `
                     <tr>
-                        <td colspan="7" class="empty-state">
-                            <i data-lucide="git-branch" style="width:48px;height:48px;"></i>
-                            <h3>No BOM Items</h3>
-                            <p>Add bill of materials to start planning</p>
+                        <td>${escapeHtml(item.parent_code)}</td>
+                        <td>${escapeHtml(item.child_code)}</td>
+                        <td>${item.quantity.toFixed(2)}</td>
+                        <td>${item.scrap_percentage.toFixed(2)}%</td>
+                        <td>${escapeHtml(item.effective_from || 'N/A')}</td>
+                        <td>${escapeHtml(item.effective_to || 'N/A')}</td>
+                        <td>
+                            <div class="actions">
+                                <button class="action-btn" onclick="cloneBOM(${item.parent_product_id})" title="Clone this BOM to another product">
+                                    <i data-lucide="copy" style="width:16px;height:16px;"></i>
+                                </button>
+                                <button class="action-btn danger" onclick="deleteBOM(${item.id})" title="Delete">
+                                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
-                `;
-                lucide.createIcons();
+                `).join('');
+            }, { defaultSortKey: 'parent_code' });
+
+            setTableSource('bom-table-body', flat);
+            updateTable('bom-table-body', flat);
+        }
+
+        async function cloneBOM(sourceProductId) {
+            const products = await apiCall('/products?is_active=true');
+            const candidates = products.filter(p => p.id !== sourceProductId);
+            if (candidates.length === 0) {
+                showToast('No other product available as clone target', 'warning');
                 return;
             }
 
-            tbody.innerHTML = bom.map(item => `
-                <tr>
-                    <td>${item.parent_product?.code || 'N/A'}</td>
-                    <td>${item.child_product?.code || 'N/A'}</td>
-                    <td>${item.quantity.toFixed(2)}</td>
-                    <td>${item.scrap_percentage.toFixed(2)}%</td>
-                    <td>${item.effective_from || 'N/A'}</td>
-                    <td>${item.effective_to || 'N/A'}</td>
-                    <td>
-                        <div class="actions">
-                            <button class="action-btn" onclick="deleteBOM(${item.id})" title="Delete">
-                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-            
-            lucide.createIcons();
+            const target = prompt(
+                'Clone this BOM into which product id?\n\n' +
+                candidates.map(p => `${p.id}: ${p.code} - ${p.name}`).join('\n')
+            );
+            if (!target) return;
+
+            const targetId = parseInt(target);
+            if (isNaN(targetId)) {
+                showToast('Invalid product id', 'error');
+                return;
+            }
+
+            try {
+                const result = await apiCall('/bom/clone', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        source_product_id: sourceProductId,
+                        target_product_id: targetId,
+                        overwrite: confirm('Replace the target product\'s existing BOM lines?'),
+                    }),
+                });
+                showToast(result.message);
+                loadBOM();
+            } catch (error) {
+                console.error('Clone BOM error:', error);
+            }
         }
 
         async function openBOMModal() {
@@ -1900,7 +2273,7 @@
 
         async function deleteBOM(id) {
             if (!confirm('Are you sure you want to delete this BOM item?')) return;
-            
+
             try {
                 await apiCall(`/bom/${id}`, { method: 'DELETE' });
                 showToast('BOM item deleted successfully');
@@ -1927,10 +2300,10 @@
                     apiCall('/products?is_active=true'),
                     apiCall('/warehouses')
                 ]);
-                
-                const productOptions = products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
-                const warehouseOptions = warehouses.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-                
+
+                const productOptions = products.map(p => `<option value="${p.id}">${escapeHtml(p.code)} - ${escapeHtml(p.name)}</option>`).join('');
+                const warehouseOptions = warehouses.map(w => `<option value="${w.id}">${escapeHtml(w.name)}</option>`).join('');
+
                 document.getElementById('inventory-product').innerHTML = '<option value="">Select Product</option>' + productOptions;
                 document.getElementById('inventory-warehouse').innerHTML = '<option value="">Select Warehouse</option>' + warehouseOptions;
             } catch (error) {
@@ -1940,40 +2313,53 @@
 
         function renderInventoryPage(inventory) {
             const tbody = document.getElementById('inventory-page-body');
-            
-            if (!inventory || inventory.length === 0) {
-                tbody.innerHTML = `
+            const columns = [
+                { key: 'product_code' }, { key: 'warehouse_name' }, { key: 'quantity' },
+                { key: 'reserved_quantity' }, { key: 'available' }, { key: 'reorder_point' }, {},
+            ];
+
+            const flat = (inventory || []).map(inv => ({
+                ...inv,
+                product_code: inv.product?.code || 'N/A',
+                warehouse_name: inv.warehouse?.name || 'N/A',
+                available: inv.quantity - inv.reserved_quantity,
+            }));
+
+            registerTable('inventory-page-body', columns, (rows) => {
+                if (rows.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="empty-state">
+                                <i data-lucide="warehouse" style="width:48px;height:48px;"></i>
+                                <h3>No Inventory Records</h3>
+                                <p>Add inventory to track stock levels</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = rows.map(inv => `
                     <tr>
-                        <td colspan="7" class="empty-state">
-                            <i data-lucide="warehouse" style="width:48px;height:48px;"></i>
-                            <h3>No Inventory Records</h3>
-                            <p>Add inventory to track stock levels</p>
+                        <td>${escapeHtml(inv.product_code)}</td>
+                        <td>${escapeHtml(inv.warehouse_name)}</td>
+                        <td>${inv.quantity.toFixed(2)}</td>
+                        <td>${inv.reserved_quantity.toFixed(2)}</td>
+                        <td>${inv.available.toFixed(2)}</td>
+                        <td>${inv.reorder_point.toFixed(2)}</td>
+                        <td>
+                            <div class="actions">
+                                <button class="action-btn" onclick="openTransactionModal(${inv.id})" title="Add Transaction">
+                                    <i data-lucide="plus-circle" style="width:16px;height:16px;"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
-                `;
-                lucide.createIcons();
-                return;
-            }
+                `).join('');
+            }, { defaultSortKey: 'product_code' });
 
-            tbody.innerHTML = inventory.map(inv => `
-                <tr>
-                    <td>${inv.product?.code || 'N/A'}</td>
-                    <td>${inv.warehouse?.name || 'N/A'}</td>
-                    <td>${inv.quantity.toFixed(2)}</td>
-                    <td>${inv.reserved_quantity.toFixed(2)}</td>
-                    <td>${(inv.quantity - inv.reserved_quantity).toFixed(2)}</td>
-                    <td>${inv.reorder_point.toFixed(2)}</td>
-                    <td>
-                        <div class="actions">
-                            <button class="action-btn" onclick="addTransaction(${inv.id})" title="Add Transaction">
-                                <i data-lucide="plus-circle" style="width:16px;height:16px;"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-            
-            lucide.createIcons();
+            setTableSource('inventory-page-body', flat);
+            updateTable('inventory-page-body', flat);
         }
 
         async function openInventoryModal() {
@@ -2004,12 +2390,39 @@
             }
         }
 
-        async function addTransaction(inventoryId) {
-            const type = prompt('Transaction type (purchase/production/sale/adjustment):', 'purchase');
-            if (!type) return;
-            
-            const qty = parseFloat(prompt('Quantity:', '100'));
-            if (isNaN(qty)) return;
+        function openTransactionModal(inventoryId) {
+            const record = (tableRegistry['inventory-page-body']?.sourceRows || [])
+                .find(inv => inv.id === inventoryId);
+            if (!record) {
+                showToast('Inventory record not found', 'error');
+                return;
+            }
+
+            document.getElementById('transaction-form').reset();
+            document.getElementById('transaction-inventory-id').value = inventoryId;
+            document.getElementById('transaction-target').value =
+                `${record.product_code} @ ${record.warehouse_name} (available ${record.available.toFixed(2)})`;
+            document.getElementById('transaction-type').value = 'purchase';
+            document.getElementById('transaction-quantity').value = '0';
+            document.getElementById('transaction-type').onchange = () => {
+                const type = document.getElementById('transaction-type').value;
+                const signed = type === 'adjustment' || type === 'transfer';
+                document.getElementById('transaction-hint').textContent = signed
+                    ? 'Adjustments and transfers are signed: positive adds stock, negative removes it.'
+                    : 'Quantity is always treated as a positive amount for this transaction type.';
+            };
+            openModal('transaction-modal');
+        }
+
+        async function saveTransaction() {
+            const inventoryId = parseInt(document.getElementById('transaction-inventory-id').value);
+            const type = document.getElementById('transaction-type').value;
+            const quantity = parseFloat(document.getElementById('transaction-quantity').value);
+
+            if (isNaN(quantity) || quantity === 0) {
+                showToast('Enter a non-zero quantity', 'warning');
+                return;
+            }
 
             try {
                 await apiCall('/inventory-transactions', {
@@ -2017,15 +2430,17 @@
                     body: JSON.stringify({
                         inventory_id: inventoryId,
                         transaction_type: type,
-                        quantity: qty,
-                        notes: 'Manual transaction'
-                    })
+                        quantity: quantity,
+                        reference_number: document.getElementById('transaction-reference').value || null,
+                        notes: document.getElementById('transaction-notes').value || null,
+                    }),
                 });
-                showToast('Transaction added successfully');
+                showToast('Transaction recorded');
+                closeModal('transaction-modal');
                 loadInventory();
                 loadDashboard();
             } catch (error) {
-                console.error('Add transaction error:', error);
+                console.error('Save transaction error:', error);
             }
         }
 
@@ -2043,7 +2458,7 @@
         async function loadDemandDropdowns() {
             try {
                 const products = await apiCall('/products?is_active=true');
-                const options = products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+                const options = products.map(p => `<option value="${p.id}">${escapeHtml(p.code)} - ${escapeHtml(p.name)}</option>`).join('');
                 document.getElementById('demand-product').innerHTML = '<option value="">Select Product</option>' + options;
             } catch (error) {
                 console.error('Load demand dropdowns error:', error);
@@ -2052,52 +2467,65 @@
 
         function renderDemand(demand) {
             const tbody = document.getElementById('demand-table-body');
-            
-            if (!demand || demand.length === 0) {
-                tbody.innerHTML = `
+            const columns = [
+                { key: 'product_code' }, { key: 'demand_type' }, { key: 'reference_number' },
+                { key: 'quantity' }, { key: 'due_date' }, { key: 'priority' },
+                { key: 'is_fulfilled' }, {},
+            ];
+
+            const flat = (demand || []).map(d => ({
+                ...d,
+                product_code: d.product?.code || 'N/A',
+                reference_number: d.reference_number || '-',
+            }));
+
+            registerTable('demand-table-body', columns, (rows) => {
+                if (rows.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                <i data-lucide="shopping-cart" style="width:48px;height:48px;"></i>
+                                <h3>No Demand Records</h3>
+                                <p>Add demand to start MRP planning</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = rows.map(d => `
                     <tr>
-                        <td colspan="8" class="empty-state">
-                            <i data-lucide="shopping-cart" style="width:48px;height:48px;"></i>
-                            <h3>No Demand Records</h3>
-                            <p>Add demand to start MRP planning</p>
+                        <td>${escapeHtml(d.product_code)}</td>
+                        <td><span class="badge ${d.demand_type === 'sales_order' ? 'badge-info' : 'badge-component'}">${d.demand_type.replace(/_/g, ' ')}</span></td>
+                        <td>${escapeHtml(d.reference_number)}</td>
+                        <td>${d.quantity.toFixed(2)}</td>
+                        <td>${escapeHtml(d.due_date)}</td>
+                        <td>P${d.priority}</td>
+                        <td><span class="badge ${d.is_fulfilled ? 'badge-success' : 'badge-warning'}">${d.is_fulfilled ? 'Fulfilled' : 'Pending'}</span></td>
+                        <td>
+                            <div class="actions">
+                                <button class="action-btn danger" onclick="deleteDemand(${d.id})" title="Delete">
+                                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
-                `;
-                lucide.createIcons();
-                return;
-            }
+                `).join('');
+            }, { defaultSortKey: 'due_date' });
 
-            tbody.innerHTML = demand.map(d => `
-                <tr>
-                    <td>${d.product?.code || 'N/A'}</td>
-                    <td><span class="badge ${d.demand_type === 'sales_order' ? 'badge-info' : 'badge-component'}">${d.demand_type.replace('_', ' ')}</span></td>
-                    <td>${d.reference_number || '-'}</td>
-                    <td>${d.quantity.toFixed(2)}</td>
-                    <td>${d.due_date}</td>
-                    <td>P${d.priority}</td>
-                    <td><span class="badge ${d.is_fulfilled ? 'badge-success' : 'badge-warning'}">${d.is_fulfilled ? 'Fulfilled' : 'Pending'}</span></td>
-                    <td>
-                        <div class="actions">
-                            <button class="action-btn danger" onclick="deleteDemand(${d.id})" title="Delete">
-                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-            
-            lucide.createIcons();
+            setTableSource('demand-table-body', flat);
+            updateTable('demand-table-body', flat);
         }
 
         async function openDemandModal() {
             document.getElementById('demand-form').reset();
             document.getElementById('demand-id').value = '';
             await loadDemandDropdowns();
-            
+
             const nextWeek = new Date();
             nextWeek.setDate(nextWeek.getDate() + 7);
             document.getElementById('demand-due-date').value = nextWeek.toISOString().split('T')[0];
-            
+
             openModal('demand-modal');
         }
 
@@ -2126,7 +2554,7 @@
 
         async function deleteDemand(id) {
             if (!confirm('Are you sure you want to delete this demand?')) return;
-            
+
             try {
                 await apiCall(`/demands/${id}`, { method: 'DELETE' });
                 showToast('Demand deleted successfully');
@@ -2148,45 +2576,58 @@
 
         function renderPlannedOrders(orders) {
             const tbody = document.getElementById('orders-table-body');
-            
-            if (!orders || orders.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="8" class="empty-state">
-                            <i data-lucide="clipboard-list" style="width:48px;height:48px;"></i>
-                            <h3>No Planned Orders</h3>
-                            <p>Run MRP calculation to generate orders</p>
-                        </td>
-                    </tr>
-                `;
-                lucide.createIcons();
-                return;
-            }
+            const columns = [
+                { key: 'product_code' }, { key: 'order_type' }, { key: 'quantity' },
+                { key: 'start_date' }, { key: 'end_date' }, { key: 'status' },
+                { key: 'action_message' }, {},
+            ];
 
-            tbody.innerHTML = orders.map(o => {
-                const statusClass = o.status === 'released' ? 'badge-info' : 
-                                    o.status === 'completed' ? 'badge-success' : 'badge-warning';
-                return `
-                    <tr>
-                        <td>${o.product?.code || 'N/A'}</td>
-                        <td><span class="badge ${o.order_type === 'purchase' ? 'badge-raw' : 'badge-component'}">${o.order_type}</span></td>
-                        <td>${o.quantity.toFixed(2)}</td>
-                        <td>${o.start_date}</td>
-                        <td>${o.end_date}</td>
-                        <td><span class="badge ${statusClass}">${o.status}</span></td>
-                        <td>${o.action_message || '-'}</td>
-                        <td>
-                            <div class="actions">
-                                <button class="action-btn btn-sm" onclick="updateOrderStatus(${o.id}, 'released')" title="Release">
-                                    <i data-lucide="check" style="width:14px;height:14px;"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-            
-            lucide.createIcons();
+            const flat = (orders || []).map(o => ({
+                ...o,
+                product_code: o.product?.code || 'N/A',
+                action_message: o.action_message || '-',
+            }));
+
+            registerTable('orders-table-body', columns, (rows) => {
+                if (rows.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                <i data-lucide="clipboard-list" style="width:48px;height:48px;"></i>
+                                <h3>No Planned Orders</h3>
+                                <p>Run MRP calculation to generate orders</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = rows.map(o => {
+                    const statusClass = o.status === 'released' ? 'badge-info' :
+                                        o.status === 'completed' ? 'badge-success' : 'badge-warning';
+                    return `
+                        <tr>
+                            <td>${escapeHtml(o.product_code)}</td>
+                            <td><span class="badge ${o.order_type === 'purchase' ? 'badge-raw' : 'badge-component'}">${escapeHtml(o.order_type)}</span></td>
+                            <td>${o.quantity.toFixed(2)}</td>
+                            <td>${escapeHtml(o.start_date)}</td>
+                            <td>${escapeHtml(o.end_date)}</td>
+                            <td><span class="badge ${statusClass}">${escapeHtml(o.status)}</span></td>
+                            <td>${escapeHtml(o.action_message)}</td>
+                            <td>
+                                <div class="actions">
+                                    <button class="action-btn btn-sm" onclick="updateOrderStatus(${o.id}, 'released')" title="Release">
+                                        <i data-lucide="check" style="width:14px;height:14px;"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }, { defaultSortKey: 'start_date' });
+
+            setTableSource('orders-table-body', flat);
+            updateTable('orders-table-body', flat);
         }
 
         async function updateOrderStatus(id, status) {
@@ -2205,12 +2646,13 @@
         // MRP
         document.getElementById('mrp-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const params = {
                 planning_horizon_start: document.getElementById('mrp-start').value,
                 planning_horizon_end: document.getElementById('mrp-end').value,
                 use_safety_stock: document.getElementById('mrp-safety-stock').checked,
-                use_min_stock_level: document.getElementById('mrp-min-stock').checked
+                use_min_stock_level: document.getElementById('mrp-min-stock').checked,
+                period_length_days: parseInt(document.getElementById('mrp-period-length').value) || 7
             };
 
             try {
@@ -2219,7 +2661,7 @@
                     method: 'POST',
                     body: JSON.stringify(params)
                 });
-                
+
                 showToast(`MRP completed! ${result.summary.total_orders_proposed} orders proposed`);
                 renderMRPResults(result);
                 loadPlannedOrders();
@@ -2231,7 +2673,7 @@
 
         function renderMRPResults(result) {
             const container = document.getElementById('mrp-results-container');
-            
+
             if (!result.requirements || result.requirements.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -2279,14 +2721,14 @@
                         <tbody>
                             ${result.requirements.filter(r => r.planned_order_quantity > 0).map(r => `
                                 <tr>
-                                    <td>${r.product_code}</td>
-                                    <td>${r.period}</td>
+                                    <td>${escapeHtml(r.product_code)}</td>
+                                    <td>${escapeHtml(r.period)}</td>
                                     <td>${r.gross_requirement.toFixed(2)}</td>
                                     <td>${r.scheduled_receipts.toFixed(2)}</td>
                                     <td>${r.projected_on_hand.toFixed(2)}</td>
                                     <td>${r.net_requirement.toFixed(2)}</td>
                                     <td><strong>${r.planned_order_quantity.toFixed(2)}</strong></td>
-                                    <td>${r.action_message || '-'}</td>
+                                    <td>${escapeHtml(r.action_message || '-')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2315,23 +2757,17 @@
         // Reports
         async function loadReports() {
             try {
-                const [products, coverage] = await Promise.all([
-                    apiCall('/products'),
+                const [summary, coverage] = await Promise.all([
+                    apiCall('/reports/summary'),
                     apiCall('/reports/mrp-coverage')
                 ]);
 
-                // Update product type chart
-                const typeCount = { raw_material: 0, component: 0, finished_good: 0 };
-                products.forEach(p => {
-                    if (typeCount.hasOwnProperty(p.product_type)) {
-                        typeCount[p.product_type]++;
-                    }
-                });
-                
+                // Product type distribution comes straight from the aggregate endpoint.
+                const byType = summary.products_by_type || {};
                 productTypeChart.data.datasets[0].data = [
-                    typeCount.raw_material,
-                    typeCount.component,
-                    typeCount.finished_good
+                    byType.raw_material || 0,
+                    byType.component || 0,
+                    byType.finished_good || 0
                 ];
                 productTypeChart.update();
 
@@ -2343,7 +2779,7 @@
 
                 // Render coverage report
                 const tbody = document.getElementById('coverage-report-body');
-                
+
                 if (!coverage || coverage.length === 0) {
                     tbody.innerHTML = `
                         <tr>
@@ -2357,11 +2793,11 @@
 
                 tbody.innerHTML = coverage.map(c => `
                     <tr>
-                        <td>${c.product_code}</td>
+                        <td>${escapeHtml(c.product_code)}</td>
                         <td>${c.total_demand.toFixed(2)}</td>
                         <td>${c.total_planned.toFixed(2)}</td>
                         <td>${c.coverage_percentage.toFixed(1)}%</td>
-                        <td><span class="badge ${c.coverage_status === 'COVERED' ? 'badge-success' : 'badge-warning'}">${c.coverage_status}</span></td>
+                        <td><span class="badge ${c.coverage_status === 'COVERED' ? 'badge-success' : 'badge-warning'}">${escapeHtml(c.coverage_status)}</span></td>
                     </tr>
                 `).join('');
 
@@ -2370,8 +2806,78 @@
             }
         }
 
-        function exportReport(type) {
-            showToast('Export feature coming soon!', 'warning');
+        // Export
+        const EXPORT_ENDPOINTS = {
+            'inventory-status': '/export/inventory-status',
+            'mrp-coverage': '/export/mrp-coverage',
+            'planned-orders': '/export/planned-orders'
+        };
+
+        function exportReport(type, format = 'csv') {
+            const endpoint = EXPORT_ENDPOINTS[type];
+            if (!endpoint) {
+                showToast(`Unknown report type: ${type}`, 'error');
+                return;
+            }
+
+            if (format === 'pdf') {
+                exportReportAsPdf(type);
+                return;
+            }
+
+            // A plain navigation lets the browser honour the download headers.
+            window.location.href = `${API_BASE}${endpoint}`;
+            showToast('Download started');
+        }
+
+        async function exportReportAsPdf(type) {
+            const endpoint = EXPORT_ENDPOINTS[type];
+            if (!endpoint) {
+                showToast(`Unknown report type: ${type}`, 'error');
+                return;
+            }
+
+            let rows;
+            try {
+                // Print from the same server-side dataset as the CSV download so
+                // every row is included, not just the current table page.
+                const response = await fetch(`${API_BASE}${endpoint}`);
+                if (!response.ok) throw new Error('Export failed');
+                rows = parseCsv(await response.text());
+            } catch (error) {
+                showToast(error.message, 'error');
+                return;
+            }
+
+            if (rows.length <= 1) {
+                showToast('Nothing to export yet', 'warning');
+                return;
+            }
+
+            const title = type.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html><head><title>${title}</title>
+                <style>
+                    body { font-family: Inter, Arial, sans-serif; padding: 32px; color: #1A1A2E; }
+                    h1 { font-size: 22px; margin-bottom: 4px; }
+                    .meta { color: #6B7280; font-size: 12px; margin-bottom: 20px; }
+                    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+                    th, td { border: 1px solid #E5E7EB; padding: 8px 10px; text-align: left; }
+                    th { background: #F5F7FA; }
+                    tbody tr:nth-child(even) { background: #F9FAFB; }
+                </style></head><body>
+                <h1>MRP++ — ${title}</h1>
+                <div class="meta">Generated ${new Date().toLocaleString()}</div>
+                <table>${rows.map((cells, i) =>
+                    `<tr>${cells.map(c => `<${i === 0 ? 'th' : 'td'}>${escapeHtml(c)}</${i === 0 ? 'th' : 'td'}>`).join('')}</tr>`
+                ).join('')}</table>
+                </body></html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+            showToast('Opening print dialog for PDF export');
         }
     </script>
 </body>

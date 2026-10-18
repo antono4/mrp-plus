@@ -1,12 +1,23 @@
 """Database models for MRP++ application."""
 
 from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Enum, DateTime, Text, Boolean
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from sqlalchemy.orm import relationship, declarative_base
+from datetime import datetime, timezone
 import enum
 
 Base = declarative_base()
+
+
+def enum_column(enum_cls, **kwargs):
+    """Map an Enum so the database stores member *values* (e.g. 'raw_material').
+
+    Without ``values_callable`` SQLAlchemy persists member *names* ('RAW_MATERIAL'),
+    which makes every API request that sends a value fail with a LookupError.
+    """
+    return Column(
+        Enum(enum_cls, values_callable=lambda cls: [member.value for member in cls]),
+        **kwargs,
+    )
 
 
 class ProductType(enum.Enum):
@@ -37,18 +48,18 @@ class Product(Base):
     code = Column(String(50), unique=True, index=True, nullable=False)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    product_type = Column(Enum(ProductType), nullable=False)
+    product_type = enum_column(ProductType, nullable=False, index=True)
     unit = Column(String(20), default="PCS")
     category = Column(String(100), nullable=True)
     unit_cost = Column(Float, default=0.0)
     min_stock_level = Column(Float, default=0.0)
     safety_stock = Column(Float, default=0.0)
     lead_time_days = Column(Integer, default=1)
-    lot_sizing_method = Column(Enum(LotSizingMethod), default=LotSizingMethod.LFL)
+    lot_sizing_method = enum_column(LotSizingMethod, default=LotSizingMethod.LFL)
     fixed_order_qty = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     bom_items_as_parent = relationship("BOMItem", foreign_keys="BOMItem.parent_product_id", back_populates="parent_product")
@@ -69,7 +80,7 @@ class BOMItem(Base):
     effective_from = Column(Date, nullable=True)
     effective_to = Column(Date, nullable=True)
     version = Column(Integer, default=1)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     parent_product = relationship("Product", foreign_keys=[parent_product_id], back_populates="bom_items_as_parent")
@@ -84,7 +95,7 @@ class Warehouse(Base):
     name = Column(String(200), nullable=False)
     location = Column(String(200), nullable=True)
     is_default = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     inventory_records = relationship("Inventory", back_populates="warehouse")
@@ -99,7 +110,7 @@ class Inventory(Base):
     quantity = Column(Float, default=0.0)
     reserved_quantity = Column(Float, default=0.0)
     reorder_point = Column(Float, default=0.0)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     product = relationship("Product", back_populates="inventory_records")
@@ -112,11 +123,11 @@ class InventoryTransaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
-    transaction_type = Column(Enum(InventoryTransactionType), nullable=False)
+    transaction_type = enum_column(InventoryTransactionType, nullable=False)
     quantity = Column(Float, nullable=False)
     reference_number = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
-    transaction_date = Column(DateTime, default=datetime.utcnow)
+    transaction_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     inventory = relationship("Inventory", back_populates="transactions")
@@ -133,7 +144,7 @@ class Demand(Base):
     priority = Column(Integer, default=1)  # 1 = highest
     due_date = Column(Date, nullable=False)
     is_fulfilled = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     product = relationship("Product", back_populates="demand_records")
@@ -152,7 +163,7 @@ class PlannedOrder(Base):
     priority = Column(Integer, default=1)
     notes = Column(Text, nullable=True)
     action_message = Column(String(200), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     product = relationship("Product")
@@ -162,7 +173,7 @@ class MRPRun(Base):
     __tablename__ = "mrp_runs"
 
     id = Column(Integer, primary_key=True, index=True)
-    run_date = Column(DateTime, default=datetime.utcnow)
+    run_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     planning_horizon_start = Column(Date, nullable=False)
     planning_horizon_end = Column(Date, nullable=False)
     status = Column(String(50), default="completed")

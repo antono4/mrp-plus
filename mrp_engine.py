@@ -1,12 +1,25 @@
-"""MRP Calculation Engine for MRP++."""
+"""MRP calculation engine for MRP++.
+
+The engine is time-phased and multi-level:
+
+1. Independent demand (sales orders, forecasts) is bucketed into planning periods.
+2. Products are processed in low-level-code order, so a parent is always planned
+   before its children.
+3. Each planned order *release* creates dependent demand for the child items at
+   the parent's release date, which is when the components are actually needed.
+4. Every level is netted against on-hand stock, scheduled receipts, safety stock
+   and minimum stock, then sized with the product's lot-sizing rule.
+"""
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 from models import Product, BOMItem, Inventory, Demand, PlannedOrder, MRPRun, Warehouse
 from schemas import MRPParameters, MRPRequirement, MRPResult, DashboardSummary, StockAlert
 from datetime import date, datetime, timedelta
-from typing import List, Dict, Tuple, Optional
+from typing import Dict, List, Optional
 import math
+
+# Hard cap so a malformed BOM graph cannot spin the low-level-code pass forever.
+_MAX_BOM_DEPTH = 20
 
 
 class MRPEngine:
@@ -15,15 +28,17 @@ class MRPEngine:
     def __init__(self, db: Session):
         self.db = db
 
+    # ------------------------------------------------------------------ BOM ---
+
     def get_product_bom(self, product_id: int, as_of_date: date = None) -> List[Dict]:
-        """Get BOM items for a product."""
+        """Get the effective BOM lines for a product."""
         if as_of_date is None:
             as_of_date = date.today()
 
         items = self.db.query(BOMItem).filter(
             BOMItem.parent_product_id == product_id,
             (BOMItem.effective_from == None) | (BOMItem.effective_from <= as_of_date),
-            (BOMItem.effective_to == None) | (BOMItem.effective_to >= as_of_date)
+            (BOMItem.effective_to == None) | (BOMItem.effective_to >= as_of_date),
         ).all()
 
         return [
@@ -32,364 +47,357 @@ class MRPEngine:
                 "child_product_id": item.child_product_id,
                 "quantity": item.quantity,
                 "is_optional": item.is_optional,
-                "scrap_percentage": item.scrap_percentage
+                "scrap_percentage": item.scrap_percentage or 0.0,
             }
             for item in items
         ]
 
-    def get_available_stock(self, product_id: int, warehouse_id: int = None) -> float:
-        """Get available stock for a product."""
-        query = self.db.query(Inventory).filter(Inventory.product_id == product_id)
-        
-        if warehouse_id:
-            query = query.filter(Inventory.warehouse_id == warehouse_id)
-        
-        inventory = query.first()
-        
-        if inventory:
-            return max(0, inventory.quantity - inventory.reserved_quantity)
-        return 0.0
+    def _bom_edges(self, as_of_date: date = None) -> List[tuple]:
+        """Return (parent_id, child_id, quantity, scrap_pct) for effective lines."""
+        if as_of_date is None:
+            as_of_date = date.today()
 
-    def get_scheduled_receipts(self, product_id: int, start_date: date, end_date: date) -> Dict[str, float]:
-        """Get scheduled receipts (planned orders) for a product within date range."""
-        orders = self.db.query(PlannedOrder).filter(
-            PlannedOrder.product_id == product_id,
-            PlannedOrder.start_date >= start_date,
-            PlannedOrder.start_date <= end_date,
-            PlannedOrder.status.in_(["proposed", "released"])
+        rows = self.db.query(BOMItem).filter(
+            (BOMItem.effective_from == None) | (BOMItem.effective_from <= as_of_date),
+            (BOMItem.effective_to == None) | (BOMItem.effective_to >= as_of_date),
         ).all()
 
-        receipts = {}
-        for order in orders:
-            period_key = order.start_date.isoformat()
-            receipts[period_key] = receipts.get(period_key, 0) + order.quantity
-        
-        return receipts
+        return [
+            (r.parent_product_id, r.child_product_id, r.quantity, r.scrap_percentage or 0.0)
+            for r in rows
+        ]
+
+    def low_level_codes(self, product_ids: List[int], as_of_date: date = None) -> Dict[int, int]:
+        """Compute the low-level code of each product (0 = no parent)."""
+        codes = {pid: 0 for pid in product_ids}
+        edges = self._bom_edges(as_of_date)
+
+        for _ in range(_MAX_BOM_DEPTH):
+            changed = False
+            for parent_id, child_id, _, _ in edges:
+                if parent_id in codes and child_id in codes:
+                    candidate = codes[parent_id] + 1
+                    if codes[child_id] < candidate:
+                        codes[child_id] = candidate
+                        changed = True
+            if not changed:
+                break
+
+        return codes
+
+    def check_circular_bom(self, product_id: int, visited: set = None) -> bool:
+        """Return True if the BOM reachable from ``product_id`` contains a cycle."""
+        if visited is None:
+            visited = set()
+
+        if product_id in visited:
+            return True
+
+        visited = visited | {product_id}
+
+        for item in self.get_product_bom(product_id):
+            if self.check_circular_bom(item["child_product_id"], visited):
+                return True
+
+        return False
+
+    # -------------------------------------------------------------- inventory ---
+
+    def get_available_stock(self, product_id: int, warehouse_id: int = None) -> float:
+        """Available (unreserved) stock, summed across warehouses when none given."""
+        query = self.db.query(Inventory).filter(Inventory.product_id == product_id)
+        if warehouse_id:
+            query = query.filter(Inventory.warehouse_id == warehouse_id)
+
+        return float(sum(max(0.0, inv.quantity - inv.reserved_quantity) for inv in query.all()))
+
+    # --------------------------------------------------------------- planning ---
+
+    def _bucket_index(self, day: date, start: date, period_days: int) -> int:
+        return max(0, (day - start).days // period_days)
+
+    def _bucket_date(self, index: int, start: date, period_days: int) -> date:
+        return start + timedelta(days=index * period_days)
 
     def get_demand_forecast(self, product_id: int, start_date: date, end_date: date) -> Dict[str, float]:
-        """Get aggregated demand for a product within date range."""
+        """Aggregate open demand for a product by due date."""
         demands = self.db.query(Demand).filter(
             Demand.product_id == product_id,
             Demand.due_date >= start_date,
-            Demand.due_date <= end_date
+            Demand.due_date <= end_date,
+            Demand.is_fulfilled == False,
         ).all()
 
-        demand_forecast = {}
+        forecast: Dict[str, float] = {}
         for demand in demands:
-            period_key = demand.due_date.isoformat()
-            demand_forecast[period_key] = demand_forecast.get(period_key, 0) + demand.quantity
-        
-        return demand_forecast
+            key = demand.due_date.isoformat()
+            forecast[key] = forecast.get(key, 0.0) + demand.quantity
+        return forecast
 
-    def calculate_gross_requirements(self, product_id: int, start_date: date, end_date: date) -> Dict[str, float]:
-        """Calculate gross requirements through BOM explosion."""
-        # Get independent demand (sales orders, forecasts)
-        gross_req = self.get_demand_forecast(product_id, start_date, end_date)
-        
-        # Check if this is a manufactured product (has BOM)
-        bom_items = self.get_product_bom(product_id)
-        
-        if bom_items:
-            # For manufactured products, requirements come from parent products
-            # This is handled recursively in the full MRP run
-            pass
-        
-        return gross_req
+    def get_scheduled_receipts(self, product_id: int, start_date: date,
+                               end_date: date) -> Dict[str, float]:
+        """Scheduled receipts already on the books for a product."""
+        orders = self.db.query(PlannedOrder).filter(
+            PlannedOrder.product_id == product_id,
+            PlannedOrder.start_date >= start_date - timedelta(days=365),
+            PlannedOrder.start_date <= end_date,
+            PlannedOrder.status.in_(["released", "firm"]),
+        ).all()
+
+        receipts: Dict[str, float] = {}
+        for order in orders:
+            key = order.start_date.isoformat()
+            receipts[key] = receipts.get(key, 0.0) + order.quantity
+        return receipts
+
+    # ------------------------------------------------------------- lot sizing ---
 
     def calculate_eoq(self, product: Product, annual_demand: float = 1000) -> float:
-        """Calculate Economic Order Quantity."""
+        """Economic order quantity: sqrt(2 * annual demand * order cost / holding cost)."""
         if product.unit_cost <= 0 or annual_demand <= 0:
-            return product.fixed_order_qty if product.fixed_order_qty > 0 else 100
-        
-        # EOQ = sqrt(2 * D * S / H)
-        # D = annual demand, S = ordering cost (assume $25), H = holding cost (assume 20% of unit cost)
+            return product.fixed_order_qty if product.fixed_order_qty > 0 else 100.0
+
         ordering_cost = 25.0
         holding_cost_rate = 0.20
-        
-        d = annual_demand
-        s = ordering_cost
-        h = product.unit_cost * holding_cost_rate
-        
-        eoq = math.sqrt((2 * d * s) / h) if h > 0 else product.fixed_order_qty
+        holding_cost = product.unit_cost * holding_cost_rate
+
+        if holding_cost <= 0:
+            return product.fixed_order_qty if product.fixed_order_qty > 0 else annual_demand
+
+        eoq = math.sqrt((2 * annual_demand * ordering_cost) / holding_cost)
         return round(eoq, 2)
 
-    def apply_lot_sizing(self, product: Product, net_requirement: float) -> float:
-        """Apply lot sizing method to determine order quantity."""
+    def apply_lot_sizing(self, product: Product, net_requirement: float,
+                         annual_demand: float = None) -> float:
+        """Apply the product's lot-sizing rule to a net requirement."""
         if net_requirement <= 0:
             return 0.0
 
-        method = product.lot_sizing_method.value if hasattr(product.lot_sizing_method, 'value') else str(product.lot_sizing_method)
-        
-        if method == "lfl":
-            # Lot for Lot - order exactly what's needed
-            return net_requirement
-        elif method == "foq":
-            # Fixed Order Quantity
-            return product.fixed_order_qty if product.fixed_order_qty > 0 else net_requirement
-        elif method == "eoq":
-            # Economic Order Quantity
-            return self.calculate_eoq(product, net_requirement * 12)  # Assume monthly demand
-        elif method == "poq":
-            # Period Order Quantity - round up to cover requirements
-            periods = 4  # Cover 4 periods at a time
+        method = product.lot_sizing_method
+        method = method.value if hasattr(method, "value") else str(method)
+
+        if method == "foq":
+            fixed = product.fixed_order_qty or 0.0
+            if fixed <= 0:
+                return net_requirement
+            # Fixed order quantity: order whole multiples so the lot covers the need.
+            return math.ceil(net_requirement / fixed) * fixed
+
+        if method == "eoq":
+            eoq = self.calculate_eoq(product, annual_demand or net_requirement * 12)
+            if eoq <= 0:
+                return net_requirement
+            return math.ceil(net_requirement / eoq) * eoq
+
+        if method == "poq":
+            # Period order quantity: cover a fixed number of future periods.
+            periods = max(1, product.fixed_order_qty or 4)
             return net_requirement * periods
-        else:
-            return net_requirement
 
-    def check_circular_bom(self, product_id: int, visited: set = None) -> bool:
-        """Check if BOM has circular references."""
-        if visited is None:
-            visited = set()
-        
-        if product_id in visited:
-            return True
-        
-        visited.add(product_id)
-        
-        bom_items = self.get_product_bom(product_id)
-        for item in bom_items:
-            if self.check_circular_bom(item["child_product_id"], visited.copy()):
-                return True
-        
-        return False
+        return net_requirement  # LFL and anything unrecognised
 
-    def mrp_explosion(self, product_id: int, quantity_needed: float, start_date: date, 
-                      end_date: date, depth: int = 0) -> Dict[int, Dict[str, float]]:
-        """
-        Explode BOM to calculate requirements for all sub-components.
-        Returns dictionary of {product_id: {date: quantity}}
-        """
-        if depth > 5:  # Max recursion depth
-            return {}
-        
-        if self.check_circular_bom(product_id):
-            return {}
-
-        requirements = {}
-        bom_items = self.get_product_bom(product_id)
-        
-        for item in bom_items:
-            child_id = item["child_product_id"]
-            qty_per = item["quantity"]
-            scrap = item["scrap_percentage"]
-            
-            # Account for scrap
-            adjusted_qty = quantity_needed * qty_per * (1 + scrap / 100)
-            
-            # Store the gross requirement
-            if child_id not in requirements:
-                requirements[child_id] = {}
-            requirements[child_id][start_date.isoformat()] = \
-                requirements[child_id].get(start_date.isoformat(), 0) + adjusted_qty
-            
-            # Recursively explode for this child's BOM
-            child_reqs = self.mrp_explosion(child_id, adjusted_qty, start_date, end_date, depth + 1)
-            
-            # Merge child requirements
-            for cid, date_qty in child_reqs.items():
-                if cid not in requirements:
-                    requirements[cid] = {}
-                for d, q in date_qty.items():
-                    requirements[cid][d] = requirements[cid].get(d, 0) + q
-        
-        return requirements
+    # ------------------------------------------------------------------- run ---
 
     def run_mrp(self, params: MRPParameters) -> MRPResult:
-        """Run full MRP calculation."""
-        # Create MRP run record
+        """Run a full multi-level, time-phased MRP calculation."""
+        period_days = max(1, getattr(params, "period_length_days", 7) or 7)
+        start = params.planning_horizon_start
+        end = params.planning_horizon_end
+
+        if end < start:
+            raise ValueError("planning_horizon_end must not be before planning_horizon_start")
+
         mrp_run = MRPRun(
-            planning_horizon_start=params.planning_horizon_start,
-            planning_horizon_end=params.planning_horizon_end,
-            status="completed"
+            planning_horizon_start=start,
+            planning_horizon_end=end,
+            status="completed",
+            notes=f"period_length_days={period_days}",
         )
         self.db.add(mrp_run)
         self.db.commit()
         self.db.refresh(mrp_run)
 
-        # Clear previous planned orders for this run
+        # Drop only proposals from earlier runs; released orders are kept.
         self.db.query(PlannedOrder).filter(
-            PlannedOrder.start_date >= params.planning_horizon_start,
-            PlannedOrder.start_date <= params.planning_horizon_end
-        ).delete()
+            PlannedOrder.status == "proposed",
+            PlannedOrder.start_date >= start - timedelta(days=365),
+            PlannedOrder.end_date <= end,
+        ).delete(synchronize_session=False)
+        self.db.commit()
 
-        all_requirements = []
-        summary = {
-            "total_products_planned": 0,
-            "total_orders_proposed": 0,
-            "total_quantity": 0
-        }
+        products = self.db.query(Product).filter(Product.is_active == True).all()
+        by_id = {p.id: p for p in products}
+        if not products:
+            return MRPResult(
+                run_id=mrp_run.id, run_date=mrp_run.run_date,
+                planning_horizon_start=start, planning_horizon_end=end,
+                requirements=[], summary=self._empty_summary(),
+            )
 
-        # Get all products that have demand in the planning horizon
-        products_with_demand = self.db.query(Demand.product_id).filter(
-            Demand.due_date >= params.planning_horizon_start,
-            Demand.due_date <= params.planning_horizon_end
-        ).distinct().all()
-
-        for (product_id,) in products_with_demand:
-            product = self.db.query(Product).get(product_id)
-            if not product or not product.is_active:
+        # Independent demand per product, bucketed.
+        gross: Dict[int, Dict[int, float]] = {p.id: {} for p in products}
+        for demand in self.db.query(Demand).filter(
+            Demand.due_date >= start, Demand.due_date <= end,
+            Demand.is_fulfilled == False,
+        ).all():
+            if demand.product_id not in gross:
                 continue
+            idx = self._bucket_index(demand.due_date, start, period_days)
+            gross[demand.product_id][idx] = gross[demand.product_id].get(idx, 0.0) + demand.quantity
 
-            # Get demand for this product
-            demand_forecast = self.get_demand_forecast(product_id, 
-                                                        params.planning_horizon_start, 
-                                                        params.planning_horizon_end)
+        # Bucketed scheduled receipts for every product.
+        receipts: Dict[int, Dict[int, float]] = {p.id: {} for p in products}
+        for order in self.db.query(PlannedOrder).filter(
+            PlannedOrder.status.in_(["released", "firm"]),
+            PlannedOrder.start_date >= start - timedelta(days=365),
+            PlannedOrder.start_date <= end,
+        ).all():
+            if order.product_id not in receipts:
+                continue
+            idx = self._bucket_index(order.start_date, start, period_days)
+            receipts[order.product_id][idx] = receipts[order.product_id].get(idx, 0.0) + order.quantity
 
-            # Calculate gross requirements from demand
-            gross_req = demand_forecast
+        codes = self.low_level_codes(list(by_id.keys()), start)
+        ordered = sorted(by_id.values(), key=lambda p: (codes.get(p.id, 0), p.code))
 
-            # Get scheduled receipts
-            scheduled_receipts = self.get_scheduled_receipts(product_id,
-                                                               params.planning_horizon_start,
-                                                               params.planning_horizon_end)
+        requirements: List[MRPRequirement] = []
+        summary = self._empty_summary()
+        edges = self._bom_edges(start)
 
-            # Get current available stock
-            available_stock = self.get_available_stock(product_id)
-
-            # Process each period
-            current_stock = available_stock
-            
-            for period_str, gross_qty in sorted(gross_req.items()):
-                period_date = date.fromisoformat(period_str)
-                
-                # Get scheduled receipts for this period
-                sched_qty = scheduled_receipts.get(period_str, 0)
-                
-                # Project on-hand after receipts
-                projected_on_hand = current_stock + sched_qty
-                
-                # Calculate net requirement
-                net_req = max(0, gross_qty - projected_on_hand)
-                
-                # Apply safety stock
-                if params.use_safety_stock:
-                    net_req = max(0, net_req - product.safety_stock)
-                
-                # Apply lot sizing
-                order_qty = self.apply_lot_sizing(product, net_req)
-                
-                # Determine planned order date (accounting for lead time)
-                planned_date = period_date - timedelta(days=product.lead_time_days)
-                
-                # Generate action message
-                action_msg = None
-                if order_qty > 0:
-                    action_msg = f"Order {order_qty:.0f} {product.unit}"
-                    if available_stock < gross_qty:
-                        action_msg = f"URGENT: {action_msg} - Stock shortage"
-                    
-                    # Create planned order
-                    planned_order = PlannedOrder(
-                        product_id=product_id,
-                        order_type="purchase" if product.product_type.value == "raw_material" else "production",
-                        quantity=order_qty,
-                        start_date=planned_date,
-                        end_date=period_date,
-                        status="proposed",
-                        priority=1,
-                        action_message=action_msg
-                    )
-                    self.db.add(planned_order)
-                    summary["total_orders_proposed"] += 1
-                    summary["total_quantity"] += order_qty
-
-                # Create MRP requirement record
-                requirement = MRPRequirement(
-                    product_id=product_id,
-                    product_code=product.code,
-                    product_name=product.name,
-                    period=period_str,
-                    gross_requirement=gross_qty,
-                    scheduled_receipts=sched_qty,
-                    projected_on_hand=projected_on_hand,
-                    net_requirement=net_req,
-                    planned_order_quantity=order_qty,
-                    planned_order_date=planned_date if order_qty > 0 else None,
-                    action_message=action_msg
-                )
-                all_requirements.append(requirement)
-                
-                # Update running stock
-                current_stock = projected_on_hand - gross_qty
-
-            # BOM explosion for manufactured products
-            if product.product_type.value == "finished_good" and gross_req:
-                total_demand = sum(gross_req.values())
-                exploded = self.mrp_explosion(product_id, total_demand,
-                                              params.planning_horizon_start,
-                                              params.planning_horizon_end)
-                
-                for child_id, date_quantities in exploded.items():
-                    child_product = self.db.query(Product).get(child_id)
-                    if not child_product:
-                        continue
-                    
-                    for date_str, qty in date_quantities.items():
-                        period_date = date.fromisoformat(date_str)
-                        
-                        # Get existing planned orders for child
-                        child_available = self.get_available_stock(child_id)
-                        child_sched = self.get_scheduled_receipts(child_id,
-                                                                    params.planning_horizon_start,
-                                                                    params.planning_horizon_end)
-                        
-                        sched_qty = child_sched.get(date_str, 0)
-                        projected = child_available + sched_qty
-                        net_req = max(0, qty - projected)
-                        
-                        order_qty = self.apply_lot_sizing(child_product, net_req)
-                        planned_date = period_date - timedelta(days=child_product.lead_time_days)
-                        
-                        if order_qty > 0:
-                            action_msg = f"Order {order_qty:.0f} {child_product.unit}"
-                            
-                            planned_order = PlannedOrder(
-                                product_id=child_id,
-                                order_type="purchase",
-                                quantity=order_qty,
-                                start_date=planned_date,
-                                end_date=period_date,
-                                status="proposed",
-                                priority=2,
-                                action_message=action_msg
-                            )
-                            self.db.add(planned_order)
-                            summary["total_orders_proposed"] += 1
-                            summary["total_quantity"] += order_qty
-
-            summary["total_products_planned"] += 1
+        for product in ordered:
+            self._plan_product(
+                product, codes, edges, gross, receipts, requirements, summary,
+                start, end, period_days, params,
+            )
 
         self.db.commit()
 
         return MRPResult(
             run_id=mrp_run.id,
             run_date=mrp_run.run_date,
-            planning_horizon_start=params.planning_horizon_start,
-            planning_horizon_end=params.planning_horizon_end,
-            requirements=all_requirements,
-            summary=summary
+            planning_horizon_start=start,
+            planning_horizon_end=end,
+            requirements=requirements,
+            summary=summary,
         )
+
+    def _empty_summary(self) -> Dict:
+        return {
+            "total_products_planned": 0,
+            "total_orders_proposed": 0,
+            "total_quantity": 0.0,
+            "total_shortages": 0,
+            "total_order_value": 0.0,
+        }
+
+    def _plan_product(self, product, codes, edges, gross, receipts, requirements,
+                      summary, start, end, period_days, params) -> None:
+        """Net one product across the horizon and push demand to its children."""
+        periods = (end - start).days // period_days + 1
+        on_hand = self.get_available_stock(product.id)
+        target = 0.0
+        if getattr(params, "use_safety_stock", True):
+            target = max(target, product.safety_stock or 0.0)
+        if getattr(params, "use_min_stock_level", True):
+            target = max(target, product.min_stock_level or 0.0)
+
+        product_gross = gross.setdefault(product.id, {})
+        product_receipts = receipts.setdefault(product.id, {})
+        produced = 0
+
+        annual_demand = sum(product_gross.values()) * (365.0 / max(1, (end - start).days))
+
+        for idx in range(periods):
+            bucket_date = self._bucket_date(idx, start, period_days)
+            gross_qty = product_gross.get(idx, 0.0)
+            sched_qty = product_receipts.get(idx, 0.0)
+
+            projected = on_hand + sched_qty
+            net_req = max(0.0, gross_qty + target - projected)
+
+            order_qty = 0.0
+            release_date = None
+            action_msg = None
+
+            if net_req > 0:
+                order_qty = self.apply_lot_sizing(product, net_req, annual_demand)
+                release_date = bucket_date - timedelta(days=product.lead_time_days or 0)
+
+                order_type = ("purchase"
+                              if getattr(product.product_type, "value", None) == "raw_material"
+                              else "production")
+
+                if release_date <= date.today():
+                    action_msg = f"URGENT: release {order_qty:.2f} {product.unit} now (past due)"
+                    summary["total_shortages"] += 1
+                else:
+                    action_msg = f"Order {order_qty:.2f} {product.unit} by {release_date.isoformat()}"
+
+                self.db.add(PlannedOrder(
+                    product_id=product.id,
+                    order_type=order_type,
+                    quantity=order_qty,
+                    start_date=release_date,
+                    end_date=bucket_date,
+                    status="proposed",
+                    priority=1 if codes.get(product.id, 0) == 0 else 2,
+                    action_message=action_msg,
+                ))
+                summary["total_orders_proposed"] += 1
+                summary["total_quantity"] += order_qty
+                summary["total_order_value"] += order_qty * (product.unit_cost or 0.0)
+
+                # Push dependent demand to children at the release date.
+                release_idx = self._bucket_index(release_date, start, period_days)
+                for parent_id, child_id, qty_per, scrap in edges:
+                    if parent_id != product.id or child_id not in gross:
+                        continue
+                    child_qty = order_qty * qty_per * (1 + scrap / 100.0)
+                    bucket = gross[child_id]
+                    bucket[release_idx] = bucket.get(release_idx, 0.0) + child_qty
+
+                projected += order_qty
+                produced += 1
+
+            requirements.append(MRPRequirement(
+                product_id=product.id,
+                product_code=product.code,
+                product_name=product.name,
+                period=bucket_date.isoformat(),
+                gross_requirement=gross_qty,
+                scheduled_receipts=sched_qty,
+                projected_on_hand=projected,
+                net_requirement=net_req,
+                planned_order_quantity=order_qty,
+                planned_order_date=release_date,
+                action_message=action_msg,
+            ))
+
+            on_hand = projected - gross_qty
+
+        if produced:
+            summary["total_products_planned"] += 1
+
+    # --------------------------------------------------------------- reports ---
 
     def get_dashboard_summary(self) -> DashboardSummary:
         """Get dashboard summary statistics."""
         total_products = self.db.query(Product).filter(Product.is_active == True).count()
         total_demands = self.db.query(Demand).filter(
             Demand.due_date >= date.today(),
-            Demand.is_fulfilled == False
+            Demand.is_fulfilled == False,
         ).count()
         pending_orders = self.db.query(PlannedOrder).filter(
             PlannedOrder.status.in_(["proposed", "released"])
         ).count()
 
-        # Count low stock items
         low_stock_count = 0
         inventory_value = 0.0
-        
-        inventory_records = self.db.query(Inventory).all()
-        for inv in inventory_records:
+
+        for inv in self.db.query(Inventory).all():
             if inv.product and inv.product.is_active:
                 available = inv.quantity - inv.reserved_quantity
-                if available < inv.product.min_stock_level:
+                if available < self._alert_threshold(inv):
                     low_stock_count += 1
                 inventory_value += available * (inv.product.unit_cost or 0)
 
@@ -398,45 +406,63 @@ class MRPEngine:
             total_demands=total_demands,
             pending_orders=pending_orders,
             low_stock_items=low_stock_count,
-            inventory_value=round(inventory_value, 2)
+            inventory_value=round(inventory_value, 2),
         )
+
+    @staticmethod
+    def _alert_threshold(inv: Inventory) -> float:
+        """Stock is low when it falls below either the product minimum or the
+        warehouse reorder point, whichever is higher."""
+        return max(inv.product.min_stock_level or 0.0, inv.reorder_point or 0.0)
 
     def get_stock_alerts(self) -> List[StockAlert]:
         """Get list of stock alerts."""
         alerts = []
-        
-        inventory_records = self.db.query(Inventory).join(Product).join(Warehouse).filter(
+
+        records = self.db.query(Inventory).join(Product).join(Warehouse).filter(
             Product.is_active == True
         ).all()
-        
-        for inv in inventory_records:
+
+        for inv in records:
             available = inv.quantity - inv.reserved_quantity
-            if available < inv.product.min_stock_level:
+            threshold = self._alert_threshold(inv)
+            if available < threshold:
                 alerts.append(StockAlert(
                     product_id=inv.product_id,
                     product_code=inv.product.code,
                     product_name=inv.product.name,
                     current_stock=available,
-                    min_stock_level=inv.product.min_stock_level,
-                    warehouse_name=inv.warehouse.name if inv.warehouse else "Unknown"
+                    min_stock_level=threshold,
+                    warehouse_name=inv.warehouse.name if inv.warehouse else "Unknown",
                 ))
-        
+
         return alerts
 
 
 def validate_bom_circular_reference(db: Session, parent_id: int, child_id: int) -> bool:
-    """Validate that adding a BOM item won't create circular reference."""
-    engine = MRPEngine(db)
-    
-    # Temporarily add the BOM item to check
-    temp_item = BOMItem(parent_product_id=parent_id, child_product_id=child_id, quantity=1)
-    db.add(temp_item)
-    db.commit()
-    
-    has_circular = engine.check_circular_bom(parent_id)
-    
-    # Remove temp item
-    db.delete(temp_item)
-    db.commit()
-    
-    return has_circular
+    """Return True when adding parent -> child would introduce a BOM cycle.
+
+    The candidate edge is checked in memory: a cycle exists exactly when the
+    proposed child can already reach the proposed parent through existing
+    edges. Nothing is written to the database, so a failed request cannot leak
+    a temporary row.
+    """
+    if parent_id == child_id:
+        return True
+
+    edges: Dict[int, List[int]] = {}
+    for parent, child in db.query(BOMItem.parent_product_id, BOMItem.child_product_id).all():
+        edges.setdefault(parent, []).append(child)
+
+    stack = [child_id]
+    visited = set()
+    while stack:
+        node = stack.pop()
+        if node == parent_id:
+            return True
+        if node in visited:
+            continue
+        visited.add(node)
+        stack.extend(edges.get(node, ()))
+
+    return False

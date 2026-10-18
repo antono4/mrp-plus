@@ -1,30 +1,13 @@
 """Pydantic schemas for MRP++ API."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import date, datetime
-from enum import Enum
 
-
-class ProductType(str, Enum):
-    RAW_MATERIAL = "raw_material"
-    COMPONENT = "component"
-    FINISHED_GOOD = "finished_good"
-
-
-class LotSizingMethod(str, Enum):
-    LFL = "lfl"
-    FOQ = "foq"
-    EOQ = "eoq"
-    POQ = "poq"
-
-
-class InventoryTransactionType(str, Enum):
-    PURCHASE = "purchase"
-    PRODUCTION = "production"
-    SALE = "sale"
-    ADJUSTMENT = "adjustment"
-    TRANSFER = "transfer"
+# Re-export the enums from the models module. Defining them twice meant a value
+# parsed by a request schema was never equal to the one stored on the model,
+# so every ``== ProductType.X`` comparison silently failed.
+from models import ProductType, LotSizingMethod, InventoryTransactionType
 
 
 # Product Schemas
@@ -68,8 +51,7 @@ class ProductResponse(ProductBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # BOM Schemas
@@ -102,8 +84,7 @@ class BOMItemResponse(BOMItemBase):
     parent_product: Optional[ProductResponse] = None
     child_product: Optional[ProductResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BOMWithChildren(BOMItemResponse):
@@ -132,8 +113,7 @@ class WarehouseResponse(WarehouseBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Inventory Schemas
@@ -161,8 +141,7 @@ class InventoryResponse(InventoryBase):
     product: Optional[ProductResponse] = None
     warehouse: Optional[WarehouseResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Inventory Transaction Schemas
@@ -182,8 +161,7 @@ class InventoryTransactionResponse(InventoryTransactionBase):
     id: int
     transaction_date: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Demand Schemas
@@ -213,8 +191,7 @@ class DemandResponse(DemandBase):
     created_at: datetime
     product: Optional[ProductResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Planned Order Schemas
@@ -248,8 +225,7 @@ class PlannedOrderResponse(PlannedOrderBase):
     created_at: datetime
     product: Optional[ProductResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # MRP Calculation Schemas
@@ -258,6 +234,7 @@ class MRPParameters(BaseModel):
     planning_horizon_end: date
     use_safety_stock: bool = True
     use_min_stock_level: bool = True
+    period_length_days: int = Field(default=7, ge=1, le=365)
 
 
 class MRPRequirement(BaseModel):
@@ -281,6 +258,17 @@ class MRPResult(BaseModel):
     planning_horizon_end: date
     requirements: List[MRPRequirement]
     summary: dict
+
+
+class MRPRunResponse(BaseModel):
+    id: int
+    run_date: datetime
+    planning_horizon_start: date
+    planning_horizon_end: date
+    status: str
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Dashboard Schemas
