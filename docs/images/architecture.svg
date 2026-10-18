@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="1000" height="640" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#6B7280"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="640" fill="#F5F7FA"/>
+
+  <text x="500" y="42" text-anchor="middle" font-size="26" font-weight="700" fill="#1A1A2E">Arsitektur MRP++</text>
+  <text x="500" y="68" text-anchor="middle" font-size="14" fill="#6B7280">Satu aplikasi FastAPI menyajikan UI dan REST API; data disimpan di SQLite</text>
+
+  <!-- Browser layer -->
+  <rect x="40" y="100" width="920" height="120" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="60" y="128" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">FRONTEND · BROWSER</text>
+  <rect x="60" y="142" width="880" height="60" rx="8" fill="#E8F4FD" stroke="#1E3A5F" stroke-dasharray="4 3"/>
+  <text x="500" y="166" text-anchor="middle" font-size="15" font-weight="600" fill="#1E3A5F">index.html — Dashboard SPA (HTML + CSS + Vanilla JS)</text>
+  <text x="500" y="188" text-anchor="middle" font-size="13" fill="#6B7280">Chart.js untuk grafik · Lucide untuk ikon · memanggil REST API via fetch()</text>
+
+  <line x1="500" y1="220" x2="500" y2="262" stroke="#6B7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="516" y="246" font-size="12" fill="#6B7280">HTTP / JSON (REST)</text>
+
+  <!-- Backend layer -->
+  <rect x="40" y="264" width="920" height="150" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="60" y="292" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">BACKEND · FASTAPI</text>
+
+  <rect x="60" y="306" width="270" height="92" rx="8" fill="#1E3A5F"/>
+  <text x="195" y="336" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">main.py</text>
+  <text x="195" y="358" text-anchor="middle" font-size="12" fill="#D7E3F0">Router REST API</text>
+  <text x="195" y="378" text-anchor="middle" font-size="12" fill="#D7E3F0">produk · BOM · stok · demand</text>
+
+  <rect x="355" y="306" width="270" height="92" rx="8" fill="#2E7D32"/>
+  <text x="490" y="336" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">mrp_engine.py</text>
+  <text x="490" y="358" text-anchor="middle" font-size="12" fill="#DCF0DD">Mesin perhitungan MRP</text>
+  <text x="490" y="378" text-anchor="middle" font-size="12" fill="#DCF0DD">BOM explosion · lot sizing</text>
+
+  <rect x="650" y="306" width="290" height="92" rx="8" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="795" y="334" text-anchor="middle" font-size="13" font-weight="600" fill="#1A1A2E">schemas.py + models.py</text>
+  <text x="795" y="356" text-anchor="middle" font-size="12" fill="#6B7280">Validasi Pydantic</text>
+  <text x="795" y="376" text-anchor="middle" font-size="12" fill="#6B7280">ORM SQLAlchemy</text>
+
+  <line x1="500" y1="414" x2="500" y2="456" stroke="#6B7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="516" y="440" font-size="12" fill="#6B7280">SQLAlchemy ORM</text>
+
+  <!-- Database -->
+  <rect x="40" y="458" width="920" height="96" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="60" y="486" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">DATABASE</text>
+  <rect x="60" y="500" width="880" height="38" rx="8" fill="#F5F7FA" stroke="#E5E7EB"/>
+  <text x="500" y="525" text-anchor="middle" font-size="13" fill="#1A1A2E">SQLite (mrp.db) — products · bom_items · warehouses · inventory · inventory_transactions · demands · planned_orders · mrp_runs</text>
+
+  <text x="500" y="600" text-anchor="middle" font-size="12" fill="#6B7280">Dijalankan sebagai satu proses Uvicorn di port 8000 (lokal) atau sebagai serverless function di Vercel</text>
+  <text x="500" y="622" text-anchor="middle" font-size="12" fill="#6B7280">Kredensial database dapat di-override lewat environment variable DATABASE_URL</text>
+</svg>
