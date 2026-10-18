@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#6B7280"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="700" fill="#F5F7FA"/>
+
+  <text x="500" y="40" text-anchor="middle" font-size="25" font-weight="700" fill="#1A1A2E">Alur Perhitungan MRP</text>
+  <text x="500" y="66" text-anchor="middle" font-size="14" fill="#6B7280">Dari demand hingga usulan pesanan yang siap dieksekusi</text>
+
+  <!-- Input column -->
+  <rect x="40" y="96" width="280" height="250" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="60" y="124" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">INPUT</text>
+
+  <rect x="60" y="140" width="240" height="52" rx="8" fill="#E8F4FD" stroke="#1E3A5F"/>
+  <text x="180" y="163" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A5F">Demand</text>
+  <text x="180" y="181" text-anchor="middle" font-size="11" fill="#6B7280">sales order + forecast</text>
+
+  <rect x="60" y="202" width="240" height="52" rx="8" fill="#E8F4FD" stroke="#1E3A5F"/>
+  <text x="180" y="225" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A5F">Stok &amp; BOM</text>
+  <text x="180" y="243" text-anchor="middle" font-size="11" fill="#6B7280">on-hand, safety stock, struktur produk</text>
+
+  <rect x="60" y="264" width="240" height="52" rx="8" fill="#E8F4FD" stroke="#1E3A5F"/>
+  <text x="180" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A5F">Parameter</text>
+  <text x="180" y="305" text-anchor="middle" font-size="11" fill="#6B7280">horizon, lead time, lot sizing</text>
+
+  <!-- Steps column -->
+  <rect x="360" y="96" width="600" height="250" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="380" y="124" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">PROSES (mrp_engine.py)</text>
+
+  <rect x="380" y="140" width="270" height="46" rx="8" fill="#1E3A5F"/>
+  <text x="515" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">1 · Hitung gross requirement</text>
+  <line x1="650" y1="163" x2="690" y2="163" stroke="#6B7280" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="690" y="140" width="250" height="46" rx="8" fill="#2E7D32"/>
+  <text x="815" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">2 · Explode BOM (multi-level)</text>
+
+  <rect x="690" y="198" width="250" height="46" rx="8" fill="#1E3A5F"/>
+  <text x="815" y="226" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">3 · Hitung net requirement</text>
+  <line x1="690" y1="221" x2="650" y2="221" stroke="#6B7280" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <rect x="380" y="198" width="270" height="46" rx="8" fill="#2E7D32"/>
+  <text x="515" y="226" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF">4 · Terapkan lot sizing</text>
+
+  <rect x="380" y="256" width="560" height="60" rx="8" fill="#FFF3EC" stroke="#FF6B35"/>
+  <text x="660" y="281" text-anchor="middle" font-size="13" font-weight="600" fill="#C2410C">5 · Tentukan tanggal pesanan (due date − lead time)</text>
+  <text x="660" y="301" text-anchor="middle" font-size="11" fill="#6B7280">BOM explosion untuk finished good menghitung kebutuhan komponen &amp; bahan baku</text>
+
+  <line x1="500" y1="346" x2="500" y2="388" stroke="#6B7280" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <!-- Output -->
+  <rect x="40" y="390" width="920" height="130" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="60" y="418" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">OUTPUT</text>
+
+  <rect x="60" y="432" width="280" height="70" rx="8" fill="#E8F4FD" stroke="#1E3A5F"/>
+  <text x="200" y="458" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A5F">Planned Orders</text>
+  <text x="200" y="478" text-anchor="middle" font-size="11" fill="#6B7280">purchase / production</text>
+  <text x="200" y="494" text-anchor="middle" font-size="11" fill="#6B7280">kuantitas + tanggal mulai &amp; selesai</text>
+
+  <rect x="360" y="432" width="280" height="70" rx="8" fill="#E8F4FD" stroke="#1E3A5F"/>
+  <text x="500" y="458" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A5F">Action Messages</text>
+  <text x="500" y="478" text-anchor="middle" font-size="11" fill="#6B7280">"Order 77 PCS"</text>
+  <text x="500" y="494" text-anchor="middle" font-size="11" fill="#6B7280">peringatan "URGENT: stock shortage"</text>
+
+  <rect x="660" y="432" width="280" height="70" rx="8" fill="#E8F4FD" stroke="#1E3A5F"/>
+  <text x="800" y="458" text-anchor="middle" font-size="13" font-weight="600" fill="#1E3A5F">Reports</text>
+  <text x="800" y="478" text-anchor="middle" font-size="11" fill="#6B7280">MRP coverage &amp; inventory status</text>
+  <text x="800" y="494" text-anchor="middle" font-size="11" fill="#6B7280">ekspor CSV / PDF</text>
+
+  <rect x="40" y="546" width="920" height="118" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="60" y="574" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="1">RUMUS INTI</text>
+  <text x="500" y="608" text-anchor="middle" font-size="15" font-weight="600" fill="#1E3A5F">Net Requirement = Gross Requirement − (Stok tersedia + Scheduled Receipts + Safety Stock)</text>
+  <text x="500" y="638" text-anchor="middle" font-size="12" fill="#6B7280">Lot sizing: LFL (lot-for-lot) · FOQ (kuantitas tetap) · EOQ (economic order quantity) · POQ (period order quantity)</text>
+</svg>
